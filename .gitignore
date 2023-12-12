@@ -1,0 +1,11 @@
+# VScode settings
+.vscode/
+
+# Pytest cache
+.pytest_cache/
+
+# Python caches
+__pycache__/
+
+# Binaries folder
+binaries/
