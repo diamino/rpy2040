@@ -1,11 +1,15 @@
 # VScode settings
 .vscode/
 
+# Python caches
+__pycache__/
+
 # Pytest cache
 .pytest_cache/
 
-# Python caches
-__pycache__/
+# Coverage analysis reports
+.coverage
+coverage.xml
 
 # Binaries folder
 binaries/

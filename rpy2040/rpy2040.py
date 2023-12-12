@@ -64,7 +64,8 @@ class Rp2040:
 
         print(f"Registers: {self.registers}")
         print(f"Current opcode is [{opcode:04x}]")
-        if (opcode >> 11) == 0b11110:  # BL
+        # BL
+        if (opcode >> 11) == 0b11110:
             print("  This is a BL instruction...")
             imm10 = opcode & 0x3ff 
             imm11 = opcode2 & 0x7ff
@@ -78,7 +79,8 @@ class Rp2040:
             print(f"  {imm32=}")
             self.lr = self.pc | 0x1
             self.pc += imm32
-        elif (opcode >> 11) == 0b00000:  # LSLS (immediate)
+        # LSLS (immediate)
+        elif (opcode >> 11) == 0b00000:
             print("  This is a LSLS (immediate) instruction...")
             m = (opcode >> 3) & 0x07
             d = opcode & 0x07
@@ -86,7 +88,8 @@ class Rp2040:
             print(f"  Source R[{m}]\tDestination R[{d}]\tShift amount [{shift_n}]")
             self.registers[d] = (self.registers[m] << shift_n) & 0xFFFFFFFF
             # TODO: update flags
-        elif (opcode >> 6) == 0b0100000010:  # LSLS (register)
+        # LSLS (register)
+        elif (opcode >> 6) == 0b0100000010:
             print("  This is a LSLS (regsiter) instruction...")
             m = (opcode >> 3) & 0x7
             d = opcode & 0x7
@@ -94,14 +97,16 @@ class Rp2040:
             print(f"  Source and destination R[{d}]\tShift amount [{shift_n}]")
             self.registers[d] = (self.registers[d] << shift_n) & 0xFFFFFFFF
             # TODO: update flags
-        elif (opcode >> 11) == 0b00100:  # MOVS
+        # MOVS
+        elif (opcode >> 11) == 0b00100:
             print("  This is a MOVS instruction...")
             d = (opcode >> 8) & 0x07
             value = opcode & 0xFF
             print(f"  Destination registers is [{d}]\tValue is [{value}]")
             self.registers[d] = value
             # TODO: update flags
-        elif (opcode >> 9) == 0b1011010:  # PUSH
+        # PUSH
+        elif (opcode >> 9) == 0b1011010:
             print("  This is a PUSH instruction...")
             bitcount = (opcode & 0x1FF).bit_count()
             address = self.sp - 4 * bitcount
@@ -112,6 +117,15 @@ class Rp2040:
             if (opcode & (1 << 8)):  # 'M'-bit -> push LR register 
                 self.sram[address-SRAM_START:address-SRAM_START+4] = self.registers[14].to_bytes(4, byteorder='little')
             self.sp -= 4 * bitcount
+        # STR immediate (T1)
+        elif (opcode >> 11) == 0b01100:
+            print("  This is a STR (immediate) instruction...")
+            n = (opcode >> 3) & 0x7
+            t = opcode & 0x7
+            imm = (opcode >> 6) & 0x1F
+            address = self.registers[n] + (imm << 2)
+            print(f"  Source R[{t}]\tDestination address [{address:#08x}]")
+            self.sram[address-SRAM_START:address-SRAM_START+4] = self.registers[t].to_bytes(4, byteorder='little')
         else:
             print(" Instruction not implemented!!!!")
 

@@ -39,5 +39,7 @@ class TestExecuteInstruction:
     def test_4_str_immediate(self):
         rp = Rp2040(pc=0x10000000)
         rp.flash[0:2] = b'\x93\x62'  # str	r3, [r2, #40]
+        rp.registers[3] = 0xcafe
+        rp.registers[2] = SRAM_START
         rp.execute_intstruction()
-        # assert rp.pc == 0x10000378
+        assert rp.sram[40:44] == b'\xfe\xca\x00\x00'
