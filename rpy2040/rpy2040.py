@@ -7,7 +7,9 @@ import array
 import ctypes
 
 SRAM_START = 0x20000000
+SRAM_SIZE = 264 * 1024  # 264kB
 FLASH_START = 0x10000000
+FLASH_SIZE = 16 * 1024 * 1024  # 16MB
 
 SP_START = 0x20041000
 PC_START = 0x10000000
@@ -22,8 +24,8 @@ def loadbin(filename: str, mem: bytearray, offset: int = 0):
 class Rp2040:
 
     def __init__(self, pc: int = PC_START, sp: int = SP_START):
-        self.sram = bytearray(264 * 1024)  # 264kB
-        self.flash = bytearray(16 * 1024 * 1024 * [0xff])  # 16MB initialized with FF
+        self.sram = bytearray(SRAM_SIZE)
+        self.flash = bytearray(FLASH_SIZE * [0xff])  # initialized with FF
         self.registers = array.array('l', 16*[0])
         self.pc = pc
         self.sp = sp
@@ -51,6 +53,11 @@ class Rp2040:
     @lr.setter
     def lr(self, value: int):
         self.registers[14] = value
+
+    def write_uint32(self, address, value):
+        if (address >= SRAM_START) and (address < SRAM_START + SRAM_SIZE):
+            sram_offset = address - SRAM_START
+            self.sram[sram_offset:sram_offset+4] = value.to_bytes(4, byteorder='little')
 
     def execute_intstruction(self):
         print(f"\nPC: {self.pc:x}\tSP: {self.sp:x}")
@@ -112,20 +119,20 @@ class Rp2040:
             address = self.sp - 4 * bitcount
             for i in range(8):
                 if (opcode & (1 << i)):
-                    self.sram[address-SRAM_START:address-SRAM_START+4] = self.registers[i].to_bytes(4, byteorder='little')
+                    self.write_uint32(address, self.registers[i])
                     address += 4
             if (opcode & (1 << 8)):  # 'M'-bit -> push LR register 
-                self.sram[address-SRAM_START:address-SRAM_START+4] = self.registers[14].to_bytes(4, byteorder='little')
+                self.write_uint32(address, self.registers[14])
             self.sp -= 4 * bitcount
         # STR immediate (T1)
         elif (opcode >> 11) == 0b01100:
             print("  This is a STR (immediate) instruction...")
             n = (opcode >> 3) & 0x7
             t = opcode & 0x7
-            imm = (opcode >> 6) & 0x1F
-            address = self.registers[n] + (imm << 2)
+            imm = ((opcode >> 6) & 0x1F) << 2
+            address = self.registers[n] + imm
             print(f"  Source R[{t}]\tDestination address [{address:#08x}]")
-            self.sram[address-SRAM_START:address-SRAM_START+4] = self.registers[t].to_bytes(4, byteorder='little')
+            self.write_uint32(address, self.registers[t])
         else:
             print(" Instruction not implemented!!!!")
 
