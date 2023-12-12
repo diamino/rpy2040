@@ -50,3 +50,10 @@ class TestExecuteInstruction:
         rp.flash[40:44] = (0x4001c004).to_bytes(4, 'little')
         rp.execute_intstruction()
         assert rp.registers[2] == 0x4001c004
+
+    def test_6_mov_register(self):
+        rp = Rp2040(pc=0x10000000)
+        rp.flash[0:2] = b'\x94\x46'  # mov	ip, r2
+        rp.registers[2] = 0x42
+        rp.execute_intstruction()
+        assert rp.registers[12] == 0x42

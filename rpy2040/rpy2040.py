@@ -149,7 +149,7 @@ class Rp2040:
             # TODO: update flags
         # LSLS (register)
         elif (opcode >> 6) == 0b0100000010:
-            print("  LSLS (regsiter) instruction...")
+            print("  LSLS (register) instruction...")
             m = (opcode >> 3) & 0x7
             d = opcode & 0x7
             shift_n = self.registers[m] & 0xFF
@@ -161,8 +161,16 @@ class Rp2040:
             print("  MOVS instruction...")
             d = (opcode >> 8) & 0x07
             value = opcode & 0xFF
-            print(f"  Destination registers is [{d}]\tValue is [{value}]")
+            print(f"  Destination register is [{d}]\tValue is [{value}]")
             self.registers[d] = value
+            # TODO: update flags
+        # MOV (register)
+        elif (opcode >> 8) == 0b01000110:
+            print("  MOV (register) instruction...")
+            d = ((opcode >> 4) & 0x08) | (opcode & 0x7)
+            m = (opcode >> 3) & 0xF
+            print(f"  Source R[{m}\tDestination R[{d}]")
+            self.registers[d] = self.registers[m]
             # TODO: update flags
         # PUSH
         elif (opcode >> 9) == 0b1011010:
@@ -187,6 +195,7 @@ class Rp2040:
             self.write_uint32(address, self.registers[t])
         else:
             print(" Instruction not implemented!!!!")
+            raise NotImplementedError
 
 
 def main():
