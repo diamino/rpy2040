@@ -43,3 +43,10 @@ class TestExecuteInstruction:
         rp.registers[2] = SRAM_START
         rp.execute_intstruction()
         assert rp.sram[40:44] == b'\xfe\xca\x00\x00'
+
+    def test_5_ldr_literal(self):
+        rp = Rp2040(pc=0x10000000)
+        rp.flash[0:2] = b'\x09\x4a'  # ldr	r2, [pc, #36]
+        rp.flash[40:44] = (0x4001c004).to_bytes(4, 'little')
+        rp.execute_intstruction()
+        assert rp.registers[2] == 0x4001c004
