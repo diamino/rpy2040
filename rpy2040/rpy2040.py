@@ -241,7 +241,7 @@ class Rp2040:
             raise NotImplementedError
 
 
-def main():
+def main():  # pragma: no cover
     import argparse
 
     parser = argparse.ArgumentParser(description='RPy2040 - a RP2040 emulator written in Python')
@@ -264,5 +264,5 @@ def main():
         rp.execute_intstruction()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
