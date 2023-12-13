@@ -242,8 +242,24 @@ class Rp2040:
 
 
 def main():
-    rp = Rp2040(pc=0x10000354)
-    loadbin("./binaries/blink/blink.bin", rp.flash)
+    import argparse
+
+    parser = argparse.ArgumentParser(description='RPy2040 - a RP2040 emulator written in Python')
+
+    parser.add_argument('filename', type=str,
+                        help='The binary file to execute in the emulator')
+    parser.add_argument('entry_point', type=str, nargs='?',
+                        help='The entry point for execution in hex format (eg. 0x10000354)')
+
+    args = parser.parse_args()
+
+    if args.entry_point:
+        entry_point = int(args.entry_point, 16)
+    else:
+        entry_point = 0x10000000
+
+    rp = Rp2040(pc=entry_point)
+    loadbin(args.filename, rp.flash)
     for _ in range(30):
         rp.execute_intstruction()
 
