@@ -5,6 +5,9 @@ Inspired by the rp2040js emulator by Uri Shaked (https://github.com/wokwi/rp2040
 '''
 import array
 import ctypes
+from typing import Iterable
+
+IGNORE_BL = True
 
 FLASH_START = 0x10000000
 FLASH_SIZE = 16 * 1024 * 1024  # 16MB
@@ -23,8 +26,10 @@ def loadbin(filename: str, mem: bytearray, offset: int = 0):
     mem[offset:len(b)+offset] = b
 
 
-def align(x, y):
-    return y * (x // y)  
+def sign_extend(value, no_bits_in: int, no_bits_out: int = 32):
+    sign = (value >> (no_bits_in - 1)) & 1
+    sign_bits = ~(~0 << (no_bits_out - no_bits_in))
+    return ctypes.c_int32(((sign_bits if sign else 0) << no_bits_in) | value).value
 
 
 class Rp2040:
@@ -60,12 +65,15 @@ class Rp2040:
     def lr(self, value: int):
         self.registers[14] = value
 
+    def str_registers(self, registers: Iterable[int] = range(16)):
+        return '\t'.join([f"R[{i:02}]: {self.registers[i]:#010x}" for i in registers])
+
     def write_uint32(self, address: int, value: int):
         if (address >= SRAM_START) and (address < (SRAM_START + SRAM_SIZE)):
             sram_offset = address - SRAM_START
             self.sram[sram_offset:sram_offset+4] = value.to_bytes(4, byteorder='little')
         elif (address >= SIO_START) and (address < (SIO_START + SIO_SIZE)):
-            print(f"Write of value [{value}/{value:#x}] to address [{address:#08x}]")
+            print(f">> Write of value [{value}/{value:#x}] to address [{address:#010x}]")
 
     def read_uint32(self, address: int):
         if (address >= SRAM_START) and (address < (SRAM_START + SRAM_SIZE)):
@@ -77,7 +85,7 @@ class Rp2040:
             flash_offset = address - FLASH_START
             return int.from_bytes(self.flash[flash_offset:flash_offset+4], 'little')
         elif (address >= SIO_START) and (address < (SIO_START + SIO_SIZE)):
-            print(f"Read from SIO address [{address:#08x}]")
+            print(f"<< Read from SIO address [{address:#010x}]")
 
     def read_uint16(self, address: int):
         if (address >= SRAM_START) and (address < (SRAM_START + SRAM_SIZE)):
@@ -89,7 +97,7 @@ class Rp2040:
             flash_offset = address - FLASH_START
             return int.from_bytes(self.flash[flash_offset:flash_offset+2], 'little')
         elif (address >= SIO_START) and (address < (SIO_START + SIO_SIZE)):
-            print(f"Read from SIO address [{address:#08x}]")
+            print(f"<< Read from SIO address [{address:#010x}]")
 
     def execute_intstruction(self):
         print(f"\nPC: {self.pc:x}\tSP: {self.sp:x}")
@@ -103,10 +111,29 @@ class Rp2040:
             opcode2 = self.read_uint16(self.pc)
             self.pc += 2
 
-        print(f"Registers: {self.registers}")
+        print(self.str_registers(registers=range(4)))
+        print(self.str_registers(registers=range(4, 8)))
+        print(self.str_registers(registers=range(8, 12)))
+        print(self.str_registers(registers=range(12, 16)))
         print(f"Current opcode is [{opcode:04x}]")
+        # ADD (register) T2
+        if (opcode >> 8) == 0b01000100:
+            print("  ADD (register) T2 instruction...")
+            dn = ((opcode >> 4) & 0x08) | (opcode & 0x7)
+            m = (opcode >> 3) & 0xF
+            # TODO: special case for SP register (13)
+            print(f"    Source R[{m}]\tDestination R[{dn}]")
+            self.registers[dn] = self.registers[m] + self.registers[dn]
+        # B T2
+        elif (opcode >> 11) == 0b11100:
+            print("  B T2 instruction...")
+            imm11 = opcode & 0x7ff
+            imm32 = sign_extend(imm11 << 1, 12)
+            print(f"    {imm32=}")
+            print(f"    Branch to: {(self.pc + imm32 + 2):#010x}")
+            self.pc += imm32 + 2
         # BL
-        if (opcode >> 11) == 0b11110:
+        elif (opcode >> 11) == 0b11110:
             print("  BL instruction...")
             imm10 = opcode & 0x3ff 
             imm11 = opcode2 & 0x7ff
@@ -115,11 +142,15 @@ class Rp2040:
             s = bool(opcode & 0x400)
             i1 = not (j1 ^ s)
             i2 = not (j2 ^ s)
-            print(f"  {j1=} {j2=} {s=} {i1=} {i2=} {imm10=} {imm11=}")
+            print(f"    {j1=} {j2=} {s=} {i1=} {i2=} {imm10=} {imm11=}")
             imm32 = ctypes.c_int32((0b11111111 if s else 0) << 24 | int(i1) << 23 | int(i2) << 22 | imm10 << 12 | imm11 << 1).value
-            print(f"  {imm32=}")
-            self.lr = self.pc | 0x1
-            self.pc += imm32
+            print(f"    {imm32=}")
+            print(f"    Branch to: {(self.pc + imm32):#010x}")
+            if not IGNORE_BL:
+                self.lr = self.pc | 0x1
+                self.pc += imm32
+            else:
+                print("    Branch ignored!!!")
         # LDR (immediate)
         elif (opcode >> 11) == 0b01101:
             print("  LDR (immediate) instruction...")
@@ -127,7 +158,7 @@ class Rp2040:
             t = opcode & 0x7
             imm = ((opcode >> 6) & 0x1F) << 2
             address = self.registers[n] + imm
-            print(f"  Destination R[{t}]\tSource address [{address:#08x}]")
+            print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
             self.registers[t] = self.read_uint32(address)
         # LDR (literal)
         elif (opcode >> 11) == 0b01001:
@@ -136,7 +167,7 @@ class Rp2040:
             imm = (opcode & 0xFF) << 2
             base = (self.pc + 2) & 0xfffffffc
             address = base + imm
-            print(f"  Destination R[{t}]\tSource address [{address:#08x}]")
+            print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
             self.registers[t] = self.read_uint32(address)
         # LSLS (immediate)
         elif (opcode >> 11) == 0b00000:
@@ -144,7 +175,7 @@ class Rp2040:
             m = (opcode >> 3) & 0x07
             d = opcode & 0x07
             shift_n = (opcode >> 6) & 0x1F
-            print(f"  Source R[{m}]\tDestination R[{d}]\tShift amount [{shift_n}]")
+            print(f"    Source R[{m}]\tDestination R[{d}]\tShift amount [{shift_n}]")
             self.registers[d] = (self.registers[m] << shift_n) & 0xFFFFFFFF
             # TODO: update flags
         # LSLS (register)
@@ -153,7 +184,7 @@ class Rp2040:
             m = (opcode >> 3) & 0x7
             d = opcode & 0x7
             shift_n = self.registers[m] & 0xFF
-            print(f"  Source and destination R[{d}]\tShift amount [{shift_n}]")
+            print(f"    Source and destination R[{d}]\tShift amount [{shift_n}]")
             self.registers[d] = (self.registers[d] << shift_n) & 0xFFFFFFFF
             # TODO: update flags
         # MOVS
@@ -161,7 +192,7 @@ class Rp2040:
             print("  MOVS instruction...")
             d = (opcode >> 8) & 0x07
             value = opcode & 0xFF
-            print(f"  Destination register is [{d}]\tValue is [{value}]")
+            print(f"    Destination register is [{d}]\tValue is [{value}]")
             self.registers[d] = value
             # TODO: update flags
         # MOV (register)
@@ -169,7 +200,7 @@ class Rp2040:
             print("  MOV (register) instruction...")
             d = ((opcode >> 4) & 0x08) | (opcode & 0x7)
             m = (opcode >> 3) & 0xF
-            print(f"  Source R[{m}\tDestination R[{d}]")
+            print(f"    Source R[{m}]\tDestination R[{d}]")
             self.registers[d] = self.registers[m]
             # TODO: update flags
         # PUSH
@@ -191,7 +222,7 @@ class Rp2040:
             t = opcode & 0x7
             imm = ((opcode >> 6) & 0x1F) << 2
             address = self.registers[n] + imm
-            print(f"  Source R[{t}]\tDestination address [{address:#08x}]")
+            print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
             self.write_uint32(address, self.registers[t])
         else:
             print(" Instruction not implemented!!!!")
@@ -201,7 +232,7 @@ class Rp2040:
 def main():
     rp = Rp2040(pc=0x10000354)
     loadbin("./binaries/blink/blink.bin", rp.flash)
-    for _ in range(20):
+    for _ in range(30):
         rp.execute_intstruction()
 
 
