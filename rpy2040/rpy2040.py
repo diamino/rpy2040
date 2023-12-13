@@ -16,6 +16,9 @@ SRAM_SIZE = 264 * 1024  # 264kB
 SIO_START = 0xd0000000
 SIO_SIZE = 0x1000000
 
+UART0_BASE = 0x40034000
+UART0_SIZE = 0x1000
+
 SP_START = 0x20041000
 PC_START = 0x10000000
 
@@ -36,6 +39,20 @@ def get_pinlist(mask: int):
     return [i for i in range(32) if mask & (1 << i)]
 
 
+class Uart:
+
+    def __init__(self, offset=UART0_BASE):
+        self.offset = offset
+        self.uartfr = 0
+
+    def write_uint32(self, address: int, value: int):
+        pass
+
+    def read_uint32(self, address: int):
+        if address == 0x18:  # UARTFR
+            return self.uartfr
+
+
 class Rp2040:
 
     def __init__(self, pc: int = PC_START, sp: int = SP_START):
@@ -44,6 +61,7 @@ class Rp2040:
         self.registers = array.array('l', 16*[0])
         self.pc = pc
         self.sp = sp
+        self.uart0 = Uart()
 
     @property
     def pc(self):
@@ -98,6 +116,10 @@ class Rp2040:
             return int.from_bytes(self.flash[flash_offset:flash_offset+4], 'little')
         elif (address >= SIO_START) and (address < (SIO_START + SIO_SIZE)):
             print(f"<< Read from SIO address [{address:#010x}]")
+        elif (address >= UART0_BASE) and (address < (UART0_BASE + UART0_SIZE)):
+            return self.uart0.read_uint32(address - UART0_BASE)
+        else:
+            print(f"<< Read from unknown address [{address:#010x}] !!!")
 
     def read_uint16(self, address: int):
         if (address >= SRAM_START) and (address < (SRAM_START + SRAM_SIZE)):
@@ -110,6 +132,9 @@ class Rp2040:
             return int.from_bytes(self.flash[flash_offset:flash_offset+2], 'little')
         elif (address >= SIO_START) and (address < (SIO_START + SIO_SIZE)):
             print(f"<< Read from SIO address [{address:#010x}]")
+        else:
+            print(f"<< Read from unknown address [{address:#010x}] !!!")
+
 
     def execute_intstruction(self):
         print(f"\nPC: {self.pc:x}\tSP: {self.sp:x}")
