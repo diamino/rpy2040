@@ -32,6 +32,10 @@ def sign_extend(value, no_bits_in: int, no_bits_out: int = 32):
     return ctypes.c_int32(((sign_bits if sign else 0) << no_bits_in) | value).value
 
 
+def get_pinlist(mask: int):
+    return [i for i in range(32) if mask & (1 << i)]
+
+
 class Rp2040:
 
     def __init__(self, pc: int = PC_START, sp: int = SP_START):
@@ -73,7 +77,15 @@ class Rp2040:
             sram_offset = address - SRAM_START
             self.sram[sram_offset:sram_offset+4] = value.to_bytes(4, byteorder='little')
         elif (address >= SIO_START) and (address < (SIO_START + SIO_SIZE)):
-            print(f">> Write of value [{value}/{value:#x}] to address [{address:#010x}]")
+            sio_offset = address - SIO_START
+            if sio_offset == 20:  # GPIO SET
+                pinlist = get_pinlist(value)
+                print(f">> GPIO pins set to HIGH/set: {pinlist}")
+            elif sio_offset == 24:  # GPIO CLR
+                pinlist = get_pinlist(value)
+                print(f">> GPIO pins set to LOW/cleared: {pinlist}")
+            else:
+                print(f">> Write of value [{value}/{value:#x}] to SIO address [{address:#010x}]")
 
     def read_uint32(self, address: int):
         if (address >= SRAM_START) and (address < (SRAM_START + SRAM_SIZE)):
