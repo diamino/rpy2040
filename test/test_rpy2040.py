@@ -79,6 +79,6 @@ class TestExecuteInstruction:
         rp = Rp2040(pc=0x10000374)
         rp.flash[0x374:0x376] = b'\x93\x69'  # ldr	r3, [r2, #24]
         rp.registers[2] = 0x40034000
-        rp.uart0.uartfr = 0xcafebabe
+        rp.mmu.regions['uart0'].uartfr = 0xcafebabe
         rp.execute_intstruction()
         assert rp.registers[3] == 0xcafebabe

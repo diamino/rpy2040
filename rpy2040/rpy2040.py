@@ -5,7 +5,7 @@ Inspired by the rp2040js emulator by Uri Shaked (https://github.com/wokwi/rp2040
 '''
 import array
 import ctypes
-from typing import Iterable
+from typing import Iterable, Protocol
 
 IGNORE_BL = True
 
@@ -21,6 +21,18 @@ UART0_SIZE = 0x1000
 
 SP_START = 0x20041000
 PC_START = 0x10000000
+
+
+class MemoryRegion(Protocol):
+
+    base_address: int
+    size: int
+
+    def write_uint32(self, address: int, value: int):
+        ...
+
+    def read_uint32(self, address: int):
+        ...
 
 
 def loadbin(filename: str, mem: bytearray, offset: int = 0):
@@ -39,10 +51,42 @@ def get_pinlist(mask: int):
     return [i for i in range(32) if mask & (1 << i)]
 
 
-class Uart:
+class Mmu:
 
-    def __init__(self, offset=UART0_BASE):
-        self.offset = offset
+    def __init__(self):
+        self.regions = {}
+
+    def register_region(self, name: str, region: MemoryRegion):
+        self.regions[name] = region
+
+    def find_region(self, address: int):
+        for _, region in self.regions.items():
+            if (address >= region.base_address) and (address < (region.base_address + region.size)):
+                return region
+        print(f"MMU: No matching region found for address {address:#010x}!!!")
+        return False
+
+    def write_uint32(self, address: int, value: int):
+        region = self.find_region(address)
+        if region:
+            region.write_uint32(address - region.base_address, value)
+
+    def read_uint32(self, address: int):
+        region = self.find_region(address)
+        if region:
+            return region.read_uint32(address - region.base_address)
+
+    def read_uint16(self, address: int):
+        region = self.find_region(address)
+        if region:
+            return region.read_uint16(address - region.base_address)
+
+
+class Uart(MemoryRegion):
+
+    def __init__(self, base_address: int = UART0_BASE, size: int = UART0_SIZE):
+        self.base_address = base_address
+        self.size = size
         self.uartfr = 0
 
     def write_uint32(self, address: int, value: int):
@@ -53,15 +97,61 @@ class Uart:
             return self.uartfr
 
 
+class Sio(MemoryRegion):
+
+    def __init__(self, base_address: int = SIO_START, size: int = SIO_SIZE):
+        self.base_address = base_address
+        self.size = size
+
+    def write_uint32(self, address: int, value: int):
+        if address == 20:  # GPIO SET
+            pinlist = get_pinlist(value)
+            print(f">> GPIO pins set to HIGH/set: {pinlist}")
+        elif address == 24:  # GPIO CLR
+            pinlist = get_pinlist(value)
+            print(f">> GPIO pins set to LOW/cleared: {pinlist}")
+        else:
+            print(f">> Write of value [{value}/{value:#x}] to SIO address [{address + self.base_address:#010x}]")
+
+    def read_uint32(self, address: int):
+        print(f"<< Read from SIO address [{address + self.base_address:#010x}]")
+
+    def read_uint16(self, address: int):
+        print(f"<< Read from SIO address [{address + self.base_address:#010x}]")
+
+
+class ByteArrayMemory(MemoryRegion):
+
+    def __init__(self, base_address: int = SRAM_START, size: int = SRAM_SIZE, preinit: int = 0x00):
+        self.base_address = base_address
+        self.size = size
+        self.memory = bytearray(size * [preinit])
+
+    def write_uint32(self, address: int, value: int):
+        self.memory[address:address+4] = value.to_bytes(4, byteorder='little')
+
+    def read_uint32(self, address: int):
+        return int.from_bytes(self.memory[address:address+4], 'little')
+
+    def read_uint16(self, address: int):
+        return int.from_bytes(self.memory[address:address+2], 'little')
+
+
 class Rp2040:
 
     def __init__(self, pc: int = PC_START, sp: int = SP_START):
-        self.sram = bytearray(SRAM_SIZE)
-        self.flash = bytearray(FLASH_SIZE * [0xff])  # initialized with FF
         self.registers = array.array('l', 16*[0])
         self.pc = pc
         self.sp = sp
-        self.uart0 = Uart()
+        self.mmu = Mmu()
+        self.sram_region = ByteArrayMemory(SRAM_START, SRAM_SIZE)
+        self.flash_region = ByteArrayMemory(FLASH_START, FLASH_SIZE, 0xFF)
+        self.sram = self.sram_region.memory
+        self.flash = self.flash_region.memory
+        self.mmu.register_region("sram", self.sram_region)
+        self.mmu.register_region("flash", self.flash_region)
+        self.mmu.register_region("sio", Sio())
+        self.mmu.register_region("uart0", Uart())
 
     @property
     def pc(self):
@@ -90,62 +180,16 @@ class Rp2040:
     def str_registers(self, registers: Iterable[int] = range(16)):
         return '\t'.join([f"R[{i:02}]: {self.registers[i]:#010x}" for i in registers])
 
-    def write_uint32(self, address: int, value: int):
-        if (address >= SRAM_START) and (address < (SRAM_START + SRAM_SIZE)):
-            sram_offset = address - SRAM_START
-            self.sram[sram_offset:sram_offset+4] = value.to_bytes(4, byteorder='little')
-        elif (address >= SIO_START) and (address < (SIO_START + SIO_SIZE)):
-            sio_offset = address - SIO_START
-            if sio_offset == 20:  # GPIO SET
-                pinlist = get_pinlist(value)
-                print(f">> GPIO pins set to HIGH/set: {pinlist}")
-            elif sio_offset == 24:  # GPIO CLR
-                pinlist = get_pinlist(value)
-                print(f">> GPIO pins set to LOW/cleared: {pinlist}")
-            else:
-                print(f">> Write of value [{value}/{value:#x}] to SIO address [{address:#010x}]")
-
-    def read_uint32(self, address: int):
-        if (address >= SRAM_START) and (address < (SRAM_START + SRAM_SIZE)):
-            # read from SRAM
-            sram_offset = address - SRAM_START
-            return int.from_bytes(self.sram[sram_offset:sram_offset+4], 'little')
-        elif (address >= FLASH_START) and (address < (FLASH_START + FLASH_SIZE)):
-            # read from flash
-            flash_offset = address - FLASH_START
-            return int.from_bytes(self.flash[flash_offset:flash_offset+4], 'little')
-        elif (address >= SIO_START) and (address < (SIO_START + SIO_SIZE)):
-            print(f"<< Read from SIO address [{address:#010x}]")
-        elif (address >= UART0_BASE) and (address < (UART0_BASE + UART0_SIZE)):
-            return self.uart0.read_uint32(address - UART0_BASE)
-        else:
-            print(f"<< Read from unknown address [{address:#010x}] !!!")
-
-    def read_uint16(self, address: int):
-        if (address >= SRAM_START) and (address < (SRAM_START + SRAM_SIZE)):
-            # read from SRAM
-            sram_offset = address - SRAM_START
-            return int.from_bytes(self.sram[sram_offset:sram_offset+2], 'little')
-        elif (address >= FLASH_START) and (address < (FLASH_START + FLASH_SIZE)):
-            # read from flash
-            flash_offset = address - FLASH_START
-            return int.from_bytes(self.flash[flash_offset:flash_offset+2], 'little')
-        elif (address >= SIO_START) and (address < (SIO_START + SIO_SIZE)):
-            print(f"<< Read from SIO address [{address:#010x}]")
-        else:
-            print(f"<< Read from unknown address [{address:#010x}] !!!")
-
-
     def execute_intstruction(self):
         print(f"\nPC: {self.pc:x}\tSP: {self.sp:x}")
         # instr_loc = self.pc - FLASH_START
         # opcode = int.from_bytes(self.flash[instr_loc:instr_loc+2], "little")
-        opcode = self.read_uint16(self.pc)
+        opcode = self.mmu.read_uint16(self.pc)
         self.pc += 2
         if (opcode >> 11) == 0b11110:
             # instr_loc = self.pc - FLASH_START
             # opcode2 = int.from_bytes(self.flash[instr_loc:instr_loc+2], "little")
-            opcode2 = self.read_uint16(self.pc)
+            opcode2 = self.mmu.read_uint16(self.pc)
             self.pc += 2
 
         print(self.str_registers(registers=range(4)))
@@ -196,7 +240,7 @@ class Rp2040:
             imm = ((opcode >> 6) & 0x1F) << 2
             address = self.registers[n] + imm
             print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
-            self.registers[t] = self.read_uint32(address)
+            self.registers[t] = self.mmu.read_uint32(address)
         # LDR (literal)
         elif (opcode >> 11) == 0b01001:
             print("  LDR (literal) instruction...")
@@ -205,7 +249,7 @@ class Rp2040:
             base = (self.pc + 2) & 0xfffffffc
             address = base + imm
             print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
-            self.registers[t] = self.read_uint32(address)
+            self.registers[t] = self.mmu.read_uint32(address)
         # LSLS (immediate)
         elif (opcode >> 11) == 0b00000:
             print("  LSLS (immediate) instruction...")
@@ -247,10 +291,10 @@ class Rp2040:
             address = self.sp - 4 * bitcount
             for i in range(8):
                 if (opcode & (1 << i)):
-                    self.write_uint32(address, self.registers[i])
+                    self.mmu.write_uint32(address, self.registers[i])
                     address += 4
             if (opcode & (1 << 8)):  # 'M'-bit -> push LR register 
-                self.write_uint32(address, self.registers[14])
+                self.mmu.write_uint32(address, self.registers[14])
             self.sp -= 4 * bitcount
         # STR immediate (T1)
         elif (opcode >> 11) == 0b01100:
@@ -260,7 +304,7 @@ class Rp2040:
             imm = ((opcode >> 6) & 0x1F) << 2
             address = self.registers[n] + imm
             print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
-            self.write_uint32(address, self.registers[t])
+            self.mmu.write_uint32(address, self.registers[t])
         else:
             print(" Instruction not implemented!!!!")
             raise NotImplementedError
