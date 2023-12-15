@@ -5,7 +5,7 @@ Inspired by the rp2040js emulator by Uri Shaked (https://github.com/wokwi/rp2040
 '''
 import array
 import ctypes
-from typing import Iterable, Protocol
+from typing import Optional, Iterable, Protocol
 
 IGNORE_BL = True
 
@@ -28,26 +28,26 @@ class MemoryRegion(Protocol):
     base_address: int
     size: int
 
-    def write_uint32(self, address: int, value: int):
+    def write_uint32(self, address: int, value: int) -> None:
         ...
 
-    def read_uint32(self, address: int):
+    def read_uint32(self, address: int) -> int:
         ...
 
 
-def loadbin(filename: str, mem: bytearray, offset: int = 0):
+def loadbin(filename: str, mem: bytearray, offset: int = 0) -> None:
     with open(filename, 'rb') as fp:
         b = fp.read()
     mem[offset:len(b)+offset] = b
 
 
-def sign_extend(value, no_bits_in: int, no_bits_out: int = 32):
+def sign_extend(value, no_bits_in: int, no_bits_out: int = 32) -> int:
     sign = (value >> (no_bits_in - 1)) & 1
     sign_bits = ~(~0 << (no_bits_out - no_bits_in))
     return ctypes.c_int32(((sign_bits if sign else 0) << no_bits_in) | value).value
 
 
-def get_pinlist(mask: int):
+def get_pinlist(mask: int) -> list[int]:
     return [i for i in range(32) if mask & (1 << i)]
 
 
@@ -56,30 +56,32 @@ class Mmu:
     def __init__(self):
         self.regions = {}
 
-    def register_region(self, name: str, region: MemoryRegion):
+    def register_region(self, name: str, region: MemoryRegion) -> None:
         self.regions[name] = region
 
-    def find_region(self, address: int):
+    def find_region(self, address: int) -> Optional[MemoryRegion]:
         for _, region in self.regions.items():
             if (address >= region.base_address) and (address < (region.base_address + region.size)):
                 return region
         print(f"MMU: No matching region found for address {address:#010x}!!!")
-        return False
+        return None
 
-    def write_uint32(self, address: int, value: int):
+    def write_uint32(self, address: int, value: int) -> None:
         region = self.find_region(address)
         if region:
             region.write_uint32(address - region.base_address, value)
 
-    def read_uint32(self, address: int):
+    def read_uint32(self, address: int) -> int:
         region = self.find_region(address)
         if region:
             return region.read_uint32(address - region.base_address)
+        return 0
 
-    def read_uint16(self, address: int):
+    def read_uint16(self, address: int) -> int:
         region = self.find_region(address)
         if region:
             return region.read_uint16(address - region.base_address)
+        return 0
 
 
 class Uart(MemoryRegion):
@@ -89,12 +91,14 @@ class Uart(MemoryRegion):
         self.size = size
         self.uartfr = 0
 
-    def write_uint32(self, address: int, value: int):
+    def write_uint32(self, address: int, value: int) -> None:
         pass
 
-    def read_uint32(self, address: int):
+    def read_uint32(self, address: int) -> int:
         if address == 0x18:  # UARTFR
             return self.uartfr
+        else:
+            raise MemoryError
 
 
 class Sio(MemoryRegion):
@@ -103,7 +107,7 @@ class Sio(MemoryRegion):
         self.base_address = base_address
         self.size = size
 
-    def write_uint32(self, address: int, value: int):
+    def write_uint32(self, address: int, value: int) -> None:
         if address == 20:  # GPIO SET
             pinlist = get_pinlist(value)
             print(f">> GPIO pins set to HIGH/set: {pinlist}")
@@ -113,11 +117,13 @@ class Sio(MemoryRegion):
         else:
             print(f">> Write of value [{value}/{value:#x}] to SIO address [{address + self.base_address:#010x}]")
 
-    def read_uint32(self, address: int):
+    def read_uint32(self, address: int) -> int:
         print(f"<< Read from SIO address [{address + self.base_address:#010x}]")
+        return 0
 
-    def read_uint16(self, address: int):
+    def read_uint16(self, address: int) -> int:
         print(f"<< Read from SIO address [{address + self.base_address:#010x}]")
+        return 0
 
 
 class ByteArrayMemory(MemoryRegion):
@@ -127,13 +133,13 @@ class ByteArrayMemory(MemoryRegion):
         self.size = size
         self.memory = bytearray(size * [preinit])
 
-    def write_uint32(self, address: int, value: int):
+    def write_uint32(self, address: int, value: int) -> None:
         self.memory[address:address+4] = value.to_bytes(4, byteorder='little')
 
-    def read_uint32(self, address: int):
+    def read_uint32(self, address: int) -> int:
         return int.from_bytes(self.memory[address:address+4], 'little')
 
-    def read_uint16(self, address: int):
+    def read_uint16(self, address: int) -> int:
         return int.from_bytes(self.memory[address:address+2], 'little')
 
 
@@ -154,7 +160,7 @@ class Rp2040:
         self.mmu.register_region("uart0", Uart())
 
     @property
-    def pc(self):
+    def pc(self) -> int:
         return self.registers[15]
 
     @pc.setter
@@ -162,7 +168,7 @@ class Rp2040:
         self.registers[15] = value
 
     @property
-    def sp(self):
+    def sp(self) -> int:
         return self.registers[13]
 
     @sp.setter
@@ -170,22 +176,23 @@ class Rp2040:
         self.registers[13] = value
 
     @property
-    def lr(self):
+    def lr(self) -> int:
         return self.registers[14]
 
     @lr.setter
     def lr(self, value: int):
         self.registers[14] = value
 
-    def str_registers(self, registers: Iterable[int] = range(16)):
+    def str_registers(self, registers: Iterable[int] = range(16)) -> str:
         return '\t'.join([f"R[{i:02}]: {self.registers[i]:#010x}" for i in registers])
 
-    def execute_intstruction(self):
+    def execute_intstruction(self) -> None:
         print(f"\nPC: {self.pc:x}\tSP: {self.sp:x}")
         # instr_loc = self.pc - FLASH_START
         # opcode = int.from_bytes(self.flash[instr_loc:instr_loc+2], "little")
         opcode = self.mmu.read_uint16(self.pc)
         self.pc += 2
+        opcode2 = 0
         if (opcode >> 11) == 0b11110:
             # instr_loc = self.pc - FLASH_START
             # opcode2 = int.from_bytes(self.flash[instr_loc:instr_loc+2], "little")
@@ -216,7 +223,7 @@ class Rp2040:
         # BL
         elif (opcode >> 11) == 0b11110:
             print("  BL instruction...")
-            imm10 = opcode & 0x3ff 
+            imm10 = opcode & 0x3ff
             imm11 = opcode2 & 0x7ff
             j1 = bool(opcode2 & 0x2000)
             j2 = bool(opcode2 & 0x800)
@@ -224,7 +231,8 @@ class Rp2040:
             i1 = not (j1 ^ s)
             i2 = not (j2 ^ s)
             print(f"    {j1=} {j2=} {s=} {i1=} {i2=} {imm10=} {imm11=}")
-            imm32 = ctypes.c_int32((0b11111111 if s else 0) << 24 | int(i1) << 23 | int(i2) << 22 | imm10 << 12 | imm11 << 1).value
+            imm23 = int(i1) << 23 | int(i2) << 22 | imm10 << 12 | imm11 << 1
+            imm32 = ctypes.c_int32((0b11111111 if s else 0) << 24 | imm23).value
             print(f"    {imm32=}")
             print(f"    Branch to: {(self.pc + imm32):#010x}")
             if not IGNORE_BL:
@@ -293,7 +301,7 @@ class Rp2040:
                 if (opcode & (1 << i)):
                     self.mmu.write_uint32(address, self.registers[i])
                     address += 4
-            if (opcode & (1 << 8)):  # 'M'-bit -> push LR register 
+            if (opcode & (1 << 8)):  # 'M'-bit -> push LR register
                 self.mmu.write_uint32(address, self.registers[14])
             self.sp -= 4 * bitcount
         # STR immediate (T1)
@@ -312,22 +320,20 @@ class Rp2040:
 
 def main():  # pragma: no cover
     import argparse
+    from functools import partial
 
     parser = argparse.ArgumentParser(description='RPy2040 - a RP2040 emulator written in Python')
 
+    base16 = partial(int, base=16)
+
     parser.add_argument('filename', type=str,
                         help='The binary file to execute in the emulator')
-    parser.add_argument('entry_point', type=str, nargs='?',
+    parser.add_argument('entry_point', type=base16, nargs='?', default="0x10000000",
                         help='The entry point for execution in hex format (eg. 0x10000354)')
 
     args = parser.parse_args()
 
-    if args.entry_point:
-        entry_point = int(args.entry_point, 16)
-    else:
-        entry_point = 0x10000000
-
-    rp = Rp2040(pc=entry_point)
+    rp = Rp2040(pc=args.entry_point)
     loadbin(args.filename, rp.flash)
     for _ in range(30):
         rp.execute_intstruction()
