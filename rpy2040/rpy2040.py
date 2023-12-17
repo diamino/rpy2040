@@ -51,13 +51,25 @@ def get_pinlist(mask: int) -> list[int]:
     return [i for i in range(32) if mask & (1 << i)]
 
 
+def generate_mask(region: MemoryRegion) -> Optional[int]:
+    if region.size.bit_count() != 1:
+        return None
+    mask = ~(region.size - 1)
+    if region.base_address == region.base_address & mask:
+        return mask
+    else:
+        return None
+
+
 class Mmu:
 
     def __init__(self):
         self.regions = {}
+        self.masks = {}
 
     def register_region(self, name: str, region: MemoryRegion) -> None:
         self.regions[name] = region
+        self.masks[name] = generate_mask(region)
 
     def find_region(self, address: int) -> Optional[MemoryRegion]:
         for _, region in self.regions.items():
@@ -147,6 +159,7 @@ class Rp2040:
 
     def __init__(self, pc: int = PC_START, sp: int = SP_START):
         self.registers = array.array('l', 16*[0])
+        self.apsr: int = 0
         self.pc = pc
         self.sp = sp
         self.mmu = Mmu()
@@ -154,8 +167,8 @@ class Rp2040:
         self.flash_region = ByteArrayMemory(FLASH_START, FLASH_SIZE, 0xFF)
         self.sram = self.sram_region.memory
         self.flash = self.flash_region.memory
-        self.mmu.register_region("sram", self.sram_region)
         self.mmu.register_region("flash", self.flash_region)
+        self.mmu.register_region("sram", self.sram_region)
         self.mmu.register_region("sio", Sio())
         self.mmu.register_region("uart0", Uart())
 
@@ -183,11 +196,55 @@ class Rp2040:
     def lr(self, value: int):
         self.registers[14] = value
 
+    @property
+    def apsr_n(self) -> bool:
+        return bool(self.apsr & (1 << 31))
+
+    @apsr_n.setter
+    def apsr_n(self, value: bool):
+        if value:
+            self.apsr |= (1 << 31)
+        else:
+            self.apsr &= ~(1 << 31)
+
+    @property
+    def apsr_z(self) -> bool:
+        return bool(self.apsr & (1 << 30))
+
+    @apsr_z.setter
+    def apsr_z(self, value: bool):
+        if value:
+            self.apsr |= (1 << 30)
+        else:
+            self.apsr &= ~(1 << 30)
+
+    @property
+    def apsr_c(self) -> bool:
+        return bool(self.apsr & (1 << 29))
+
+    @apsr_c.setter
+    def apsr_c(self, value: bool):
+        if value:
+            self.apsr |= (1 << 29)
+        else:
+            self.apsr &= ~(1 << 29)
+
+    @property
+    def apsr_v(self) -> bool:
+        return bool(self.apsr & (1 << 28))
+
+    @apsr_v.setter
+    def apsr_v(self, value: bool):
+        if value:
+            self.apsr |= (1 << 28)
+        else:
+            self.apsr &= ~(1 << 28)
+
     def str_registers(self, registers: Iterable[int] = range(16)) -> str:
         return '\t'.join([f"R[{i:02}]: {self.registers[i]:#010x}" for i in registers])
 
     def execute_intstruction(self) -> None:
-        print(f"\nPC: {self.pc:x}\tSP: {self.sp:x}")
+        print(f"\nPC: {self.pc:x}\tSP: {self.sp:x}\tAPSR: {self.apsr:08x}")
         # instr_loc = self.pc - FLASH_START
         # opcode = int.from_bytes(self.flash[instr_loc:instr_loc+2], "little")
         opcode = self.mmu.read_uint16(self.pc)
@@ -313,6 +370,16 @@ class Rp2040:
             address = self.registers[n] + imm
             print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
             self.mmu.write_uint32(address, self.registers[t])
+        # TST immediate (T1)
+        elif (opcode >> 6) == 0b0100001000:
+            print("  TST instruction...")
+            n = opcode & 0x7
+            m = (opcode >> 3) & 0x7
+            result = self.registers[n] & self.registers[m]
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
+            self.apsr_c = False
+            print(f"  APSR: {self.apsr:08x}")
         else:
             print(" Instruction not implemented!!!!")
             raise NotImplementedError

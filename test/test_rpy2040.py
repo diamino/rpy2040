@@ -82,3 +82,36 @@ class TestExecuteInstruction:
         rp.mmu.regions['uart0'].uartfr = 0xcafebabe
         rp.execute_intstruction()
         assert rp.registers[3] == 0xcafebabe
+
+    def test_tst(self):
+        rp = Rp2040(pc=0x10000000)
+        rp.flash[0:2] = b'\x19\x42'  # tst	r1, r3
+        rp.registers[1] = 0x42
+        rp.registers[3] = 0x43
+        rp.apsr = 0xD0000000
+        rp.execute_intstruction()
+        assert rp.apsr_n is False
+        assert rp.apsr_z is False
+        assert rp.apsr_c is False
+
+    def test_tst_negative(self):
+        rp = Rp2040(pc=0x10000000)
+        rp.flash[0:2] = b'\x19\x42'  # tst	r1, r3
+        rp.registers[1] = 0xf0000000
+        rp.registers[3] = 0xf0000400
+        rp.apsr = 0x00000000
+        rp.execute_intstruction()
+        assert rp.apsr_n is True
+        assert rp.apsr_z is False
+        assert rp.apsr_c is False
+
+    def test_tst_zero(self):
+        rp = Rp2040(pc=0x10000000)
+        rp.flash[0:2] = b'\x19\x42'  # tst	r1, r3
+        rp.registers[1] = 0xf0000000
+        rp.registers[3] = 0x0000f000
+        rp.apsr = 0x00000000
+        rp.execute_intstruction()
+        assert rp.apsr_n is False
+        assert rp.apsr_z is True
+        assert rp.apsr_c is False
