@@ -243,6 +243,16 @@ class Rp2040:
     def str_registers(self, registers: Iterable[int] = range(16)) -> str:
         return '\t'.join([f"R[{i:02}]: {self.registers[i]:#010x}" for i in registers])
 
+    def condition_passed(self, cond: int) -> bool:
+        if (cond >> 1) == 0b000:  # EQ and NE
+            result = self.apsr_z
+        else:  # Eventually this clause should be deleted 
+            result = True
+        if (cond & 1) and cond != 0b1111:
+            return not result
+        else:
+            return result
+
     def execute_intstruction(self) -> None:
         print(f"\nPC: {self.pc:x}\tSP: {self.sp:x}\tAPSR: {self.apsr:08x}")
         # instr_loc = self.pc - FLASH_START
@@ -269,6 +279,18 @@ class Rp2040:
             # TODO: special case for SP register (13)
             print(f"    Source R[{m}]\tDestination R[{dn}]")
             self.registers[dn] = self.registers[m] + self.registers[dn]
+        # B T1
+        elif (opcode >> 12) == 0b1101:
+            print("  B T1 instruction...")
+            imm8 = opcode & 0xff
+            cond = (opcode >> 8) & 0xf
+            imm32 = sign_extend(imm8 << 1, 9)
+            print(f"    {imm32=}")
+            if self.condition_passed(cond):
+                print(f"    Branch to: {(self.pc + imm32 + 2):#010x}")
+                self.pc += imm32 + 2
+            else:
+                print(f"    Condition False. Will NOT branch to: {(self.pc + imm32 + 2):#010x}")
         # B T2
         elif (opcode >> 11) == 0b11100:
             print("  B T2 instruction...")

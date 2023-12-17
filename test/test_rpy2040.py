@@ -115,3 +115,10 @@ class TestExecuteInstruction:
         assert rp.apsr_n is False
         assert rp.apsr_z is True
         assert rp.apsr_c is False
+
+    def test_bne_not_equal(self):
+        rp = Rp2040(pc=0x10000378)
+        rp.flash[0x378:0x37a] = b'\xfc\xd1'  # bne.n	10000374
+        rp.apsr_z = False
+        rp.execute_intstruction()
+        assert rp.pc == 0x10000374
