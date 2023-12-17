@@ -88,18 +88,22 @@ class TestExecuteInstruction:
         rp.flash[0:2] = b'\x19\x42'  # tst	r1, r3
         rp.registers[1] = 0x42
         rp.registers[3] = 0x43
-        rp.apsr = 0xD0000000
+        rp.apsr_n = True
+        rp.apsr_z = True
+        rp.apsr_c = True
         rp.execute_intstruction()
         assert rp.apsr_n is False
         assert rp.apsr_z is False
-        assert rp.apsr_c is False
+        assert rp.apsr_c is True
 
     def test_tst_negative(self):
         rp = Rp2040(pc=0x10000000)
         rp.flash[0:2] = b'\x19\x42'  # tst	r1, r3
         rp.registers[1] = 0xf0000000
         rp.registers[3] = 0xf0000400
-        rp.apsr = 0x00000000
+        rp.apsr_n = False
+        rp.apsr_z = True
+        rp.apsr_c = False
         rp.execute_intstruction()
         assert rp.apsr_n is True
         assert rp.apsr_z is False
@@ -110,7 +114,9 @@ class TestExecuteInstruction:
         rp.flash[0:2] = b'\x19\x42'  # tst	r1, r3
         rp.registers[1] = 0xf0000000
         rp.registers[3] = 0x0000f000
-        rp.apsr = 0x00000000
+        rp.apsr_n = False
+        rp.apsr_z = False
+        rp.apsr_c = False
         rp.execute_intstruction()
         assert rp.apsr_n is False
         assert rp.apsr_z is True

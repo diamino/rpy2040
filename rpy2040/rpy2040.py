@@ -400,7 +400,6 @@ class Rp2040:
             result = self.registers[n] & self.registers[m]
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
-            self.apsr_c = False
             print(f"  APSR: {self.apsr:08x}")
         else:
             print(" Instruction not implemented!!!!")
