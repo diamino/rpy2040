@@ -27,8 +27,27 @@ class TestExecuteInstruction:
         rp = Rp2040(pc=0x10000000)
         rp.registers[4] = 208
         rp.flash[0:2] = b'\x24\x06'  # lsls	r4, r4, #24
+        rp.apsr_n = False
+        rp.apsr_z = True
+        rp.apsr_c = True
         rp.execute_intstruction()
         assert rp.registers[4] == 3489660928
+        assert rp.apsr_n is True
+        assert rp.apsr_z is False
+        assert rp.apsr_c is False
+
+    def test_lsls_immediate_with_carry_out(self):
+        rp = Rp2040(pc=0x10000000)
+        rp.registers[4] = 208
+        rp.flash[0:2] = b'\x64\x06'  # lsls	r4, r4, #25
+        rp.apsr_n = False
+        rp.apsr_z = True
+        rp.apsr_c = False
+        rp.execute_intstruction()
+        assert rp.registers[4] == 2684354560
+        assert rp.apsr_n is True
+        assert rp.apsr_z is False
+        assert rp.apsr_c is True
 
     def test_bl(self):
         if IGNORE_BL:
@@ -128,3 +147,19 @@ class TestExecuteInstruction:
         rp.apsr_z = False
         rp.execute_intstruction()
         assert rp.pc == 0x10000374
+
+    def test_ldrsh(self):
+        rp = Rp2040(pc=0x10000000)
+        rp.flash[0:2] = b'\x5d\x5f'  # ldrsh	r5, [r3, r5]
+        rp.sram[0x618:0x61A] = b'\xfe\xca'
+        rp.registers[3] = 0x20000618
+        rp.registers[5] = 0
+        rp.execute_intstruction()
+        assert rp.registers[5] == 0x0000cafe
+
+    def test_cmp(self):
+        rp = Rp2040(pc=0x10000000)
+        rp.flash[0:2] = b'\x42\x2d'  # cmp	r5, #66	@ 0x42
+        rp.registers[5] = 0x42
+        rp.execute_intstruction()
+        assert rp.apsr_z is True

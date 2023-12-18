@@ -246,7 +246,7 @@ class Rp2040:
     def condition_passed(self, cond: int) -> bool:
         if (cond >> 1) == 0b000:  # EQ and NE
             result = self.apsr_z
-        else:  # Eventually this clause should be deleted 
+        else:  # Eventually this clause should be deleted
             result = True
         if (cond & 1) and cond != 0b1111:
             return not result
@@ -337,6 +337,15 @@ class Rp2040:
             address = base + imm
             print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
             self.registers[t] = self.mmu.read_uint32(address)
+        # LDRSH (register)
+        elif (opcode >> 9) == 0b0101111:
+            print("  LDRSH (register) instruction...")
+            m = (opcode >> 6) & 0x7
+            n = (opcode >> 3) & 0x7
+            t = opcode & 0x7
+            address = self.registers[n] + self.registers[m]
+            print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
+            self.registers[t] = self.mmu.read_uint16(address)
         # LSLS (immediate)
         elif (opcode >> 11) == 0b00000:
             print("  LSLS (immediate) instruction...")
@@ -344,8 +353,12 @@ class Rp2040:
             d = opcode & 0x07
             shift_n = (opcode >> 6) & 0x1F
             print(f"    Source R[{m}]\tDestination R[{d}]\tShift amount [{shift_n}]")
-            self.registers[d] = (self.registers[m] << shift_n) & 0xFFFFFFFF
-            # TODO: update flags
+            result = self.registers[m] << shift_n
+            self.registers[d] = result & 0xFFFFFFFF
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
+            if shift_n > 0:
+                self.apsr_c = bool(result & (1 << 32))
         # LSLS (register)
         elif (opcode >> 6) == 0b0100000010:
             print("  LSLS (register) instruction...")
@@ -353,8 +366,12 @@ class Rp2040:
             d = opcode & 0x7
             shift_n = self.registers[m] & 0xFF
             print(f"    Source and destination R[{d}]\tShift amount [{shift_n}]")
-            self.registers[d] = (self.registers[d] << shift_n) & 0xFFFFFFFF
-            # TODO: update flags
+            result = self.registers[d] << shift_n
+            self.registers[d] = result & 0xFFFFFFFF
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
+            if shift_n > 0:
+                self.apsr_c = bool(result & (1 << 32))
         # MOVS
         elif (opcode >> 11) == 0b00100:
             print("  MOVS instruction...")
@@ -362,15 +379,19 @@ class Rp2040:
             value = opcode & 0xFF
             print(f"    Destination register is [{d}]\tValue is [{value}]")
             self.registers[d] = value
-            # TODO: update flags
+            self.apsr_n = bool(value & (1 << 31))
+            self.apsr_z = bool(value == 0)
         # MOV (register)
         elif (opcode >> 8) == 0b01000110:
             print("  MOV (register) instruction...")
             d = ((opcode >> 4) & 0x08) | (opcode & 0x7)
             m = (opcode >> 3) & 0xF
             print(f"    Source R[{m}]\tDestination R[{d}]")
-            self.registers[d] = self.registers[m]
-            # TODO: update flags
+            result = self.registers[m]
+            self.registers[d] = result
+            if d != 15:
+                self.apsr_n = bool(result & (1 << 31))
+                self.apsr_z = bool(result == 0)
         # PUSH
         elif (opcode >> 9) == 0b1011010:
             print("  PUSH instruction...")
