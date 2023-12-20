@@ -4,6 +4,8 @@ RP2040 chip emulator written in Python
 
 The code is loosely based on the [rp2040js code](https://github.com/wokwi/rp2040js) from the [excellent live coding series](https://youtube.com/playlist?list=PLLomdjsHtJTxT-vdJHwa3z62dFXZnzYBm&si=1AcioLyIXY0Y92L1) by Uri Shaked of [Wokwi](https://wokwi.com).
 
+The tags in the repository (loosely) refer to the resulting code after each episode of the live coding series.
+
 ## Requirements
 
 * Python 3 (tested on v3.11.3)
