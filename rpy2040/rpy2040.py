@@ -471,9 +471,9 @@ def main():  # pragma: no cover
     base16 = partial(int, base=16)
 
     parser.add_argument('filename', type=str,
-                        help='The binary file to execute in the emulator')
+                        help='The binary (.bin) file to execute in the emulator')
     parser.add_argument('entry_point', type=base16, nargs='?', default="0x10000000",
-                        help='The entry point for execution in hex format (eg. 0x10000354)')
+                        help='The entry point for execution in hex format (eg. 0x10000354). Defaults to 0x10000000')
 
     args = parser.parse_args()
 
