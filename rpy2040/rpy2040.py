@@ -106,6 +106,12 @@ class Mmu:
             return region.read_uint16(address - region.base_address)
         return 0
 
+    def read_uint8(self, address: int) -> int:
+        region = self.find_region(address)
+        if region:
+            return region.read_uint8(address - region.base_address)
+        return 0
+
 
 class Uart(MemoryRegion):
 
@@ -164,6 +170,9 @@ class ByteArrayMemory(MemoryRegion):
 
     def read_uint16(self, address: int) -> int:
         return int.from_bytes(self.memory[address:address+2], 'little')
+
+    def read_uint8(self, address: int) -> int:
+        return self.memory[address]
 
 
 class Rp2040:
@@ -294,8 +303,20 @@ class Rp2040:
         print(self.str_registers(registers=range(8, 12)))
         print(self.str_registers(registers=range(12, 16)))
         print(f"Current opcode is [{opcode:04x}]")
+        # ADD (immediate) T2
+        if (opcode >> 11) == 0b00110:
+            print("  ADD (immediate) T2 instruction...")
+            dn = ((opcode >> 8) & 0x7)
+            imm = opcode & 0xFF
+            print(f"    Add {imm:#x} to R[{dn}] ...")
+            result, c, v = add_with_carry(self.registers[dn], imm, False)
+            self.registers[dn] = result
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
+            self.apsr_c = c
+            self.apsr_v = v
         # ADD (register) T2
-        if (opcode >> 8) == 0b01000100:
+        elif (opcode >> 8) == 0b01000100:
             print("  ADD (register) T2 instruction...")
             dn = ((opcode >> 4) & 0x08) | (opcode & 0x7)
             m = (opcode >> 3) & 0xF
@@ -382,6 +403,15 @@ class Rp2040:
             address = base + imm
             print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
             self.registers[t] = self.mmu.read_uint32(address)
+        # LDRB (immediate)
+        elif (opcode >> 11) == 0b01111:
+            print("  LDRB (immediate) instruction...")
+            imm5 = (opcode >> 6) & 0x1F
+            n = (opcode >> 3) & 0x7
+            t = opcode & 0x7
+            address = self.registers[n] + imm5
+            print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
+            self.registers[t] = self.mmu.read_uint8(address)
         # LDRSH (register)
         elif (opcode >> 9) == 0b0101111:
             print("  LDRSH (register) instruction...")
@@ -449,6 +479,18 @@ class Rp2040:
             if (opcode & (1 << 8)):  # 'M'-bit -> push LR register
                 self.mmu.write_uint32(address, self.registers[14])
             self.sp -= 4 * bitcount
+        # RSB / NEG
+        elif (opcode >> 6) == 0b0100001001:
+            print("  RSB / NEG instruction...")
+            n = ((opcode >> 3) & 0x7)
+            d = opcode & 0x7
+            print(f"    Subtract R[{n}] from 0 ...")
+            result, c, v = add_with_carry(~self.registers[n], 0, True)
+            self.registers[d] = result
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
+            self.apsr_c = c
+            self.apsr_v = v
         # STR immediate (T1)
         elif (opcode >> 11) == 0b01100:
             print("  STR (immediate) instruction...")
@@ -458,6 +500,18 @@ class Rp2040:
             address = self.registers[n] + imm
             print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
             self.mmu.write_uint32(address, self.registers[t])
+        # SUB (immediate) T2
+        elif (opcode >> 11) == 0b00111:
+            print("  SUB (immediate) T2 instruction...")
+            dn = ((opcode >> 8) & 0x7)
+            imm = opcode & 0xFF
+            print(f"    Subtract {imm:#x} from R[{dn}] ...")
+            result, c, v = add_with_carry(self.registers[dn], ~imm, True)
+            self.registers[dn] = result
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
+            self.apsr_c = c
+            self.apsr_v = v
         # TST immediate (T1)
         elif (opcode >> 6) == 0b0100001000:
             print("  TST instruction...")
@@ -489,7 +543,7 @@ def main():  # pragma: no cover
 
     rp = Rp2040(pc=args.entry_point)
     loadbin(args.filename, rp.flash)
-    for _ in range(30):
+    for _ in range(60):
         rp.execute_intstruction()
 
 

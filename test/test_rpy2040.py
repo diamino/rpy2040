@@ -1,4 +1,5 @@
 from rpy2040.rpy2040 import Rp2040, SRAM_START, IGNORE_BL, add_with_carry
+import util.assembler as asm
 
 SP_START = 0x20000100
 
@@ -177,6 +178,51 @@ class TestInstructions:
         assert rp.apsr_c is False
         assert rp.apsr_n is True
         assert rp.apsr_v is True
+
+    def test_add_t2(self):
+        rp = Rp2040(pc=0x10000000)
+        opcode = asm.opcodeADDT2(rdn=1, imm8=1)
+        rp.flash[0:len(opcode)] = opcode  # adds r1, #1
+        rp.registers[1] = 0xffffffff
+        rp.execute_intstruction()
+        assert rp.registers[1] == 0
+        assert rp.apsr_z is True
+        assert rp.apsr_c is True
+        assert rp.apsr_n is False
+        assert rp.apsr_v is False
+
+    def test_sub_t2(self):
+        rp = Rp2040(pc=0x10000000)
+        opcode = asm.opcodeSUBT2(rdn=5, imm8=42)
+        rp.flash[0:len(opcode)] = opcode  # subs r5, #42
+        rp.registers[5] = 12
+        rp.execute_intstruction()
+        assert rp.registers[5] == 0xffffffe2
+        assert rp.apsr_z is False
+        assert rp.apsr_c is False
+        assert rp.apsr_n is True
+        assert rp.apsr_v is False
+
+    def test_rsb(self):
+        rp = Rp2040(pc=0x10000000)
+        opcode = asm.opcodeRSB(rd=3, rn=2)
+        rp.flash[0:len(opcode)] = opcode  # rsbs r3, r2, #0
+        rp.registers[2] = 12
+        rp.execute_intstruction()
+        assert rp.registers[3] == 0xfffffff4
+        assert rp.apsr_z is False
+        assert rp.apsr_c is False
+        assert rp.apsr_n is True
+        assert rp.apsr_v is False
+
+    def test_ldrb_immediate(self):
+        rp = Rp2040(pc=0x10000000)
+        opcode = asm.opcodeLDRBimm(1, 0, 0)
+        rp.flash[0:len(opcode)] = opcode  # ldrb r1, [r0, #0]
+        rp.sram[0x618:0x61A] = b'\xfe\xca'
+        rp.registers[0] = 0x20000619
+        rp.execute_intstruction()
+        assert rp.registers[1] == 0x000000ca
 
 
 class TestAddWithCarry:
