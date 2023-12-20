@@ -48,12 +48,11 @@ def sign_extend(value, no_bits_in: int) -> int:
 
 
 def add_with_carry(x: int, y: int, carry_in: bool) -> tuple[int, bool, bool]:
-    x %= (1 << 32)
-    y %= (1 << 32)
+    x &= 0xFFFFFFFF
+    y &= 0xFFFFFFFF
     unsigned_sum = x + y + carry_in
     signed_sum = sign_extend(x, 32) + sign_extend(y, 32) + carry_in
     result = unsigned_sum & 0xFFFFFFFF
-    # print(f"{unsigned_sum=:b} {signed_sum=:b} {result=:b}")
     carry_out = False if result == unsigned_sum else True
     overflow = False if sign_extend(result, 32) == signed_sum else True
     return (result, carry_out, overflow)
