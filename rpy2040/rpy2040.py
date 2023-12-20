@@ -41,10 +41,22 @@ def loadbin(filename: str, mem: bytearray, offset: int = 0) -> None:
     mem[offset:len(b)+offset] = b
 
 
-def sign_extend(value, no_bits_in: int, no_bits_out: int = 32) -> int:
+def sign_extend(value, no_bits_in: int) -> int:
     sign = (value >> (no_bits_in - 1)) & 1
-    sign_bits = ~(~0 << (no_bits_out - no_bits_in))
+    sign_bits = ~(~0 << (32 - no_bits_in))
     return ctypes.c_int32(((sign_bits if sign else 0) << no_bits_in) | value).value
+
+
+def add_with_carry(x: int, y: int, carry_in: bool) -> tuple[int, bool, bool]:
+    x %= (1 << 32)
+    y %= (1 << 32)
+    unsigned_sum = x + y + carry_in
+    signed_sum = sign_extend(x, 32) + sign_extend(y, 32) + carry_in
+    result = unsigned_sum & 0xFFFFFFFF
+    # print(f"{unsigned_sum=:b} {signed_sum=:b} {result=:b}")
+    carry_out = False if result == unsigned_sum else True
+    overflow = False if sign_extend(result, 32) == signed_sum else True
+    return (result, carry_out, overflow)
 
 
 def get_pinlist(mask: int) -> list[int]:
@@ -104,7 +116,7 @@ class Uart(MemoryRegion):
         self.uartfr = 0
 
     def write_uint32(self, address: int, value: int) -> None:
-        pass
+        print(f"UART: Write of value {value:x} to UART address {address:x}...")
 
     def read_uint32(self, address: int) -> int:
         if address == 0x18:  # UARTFR
@@ -244,9 +256,21 @@ class Rp2040:
         return '\t'.join([f"R[{i:02}]: {self.registers[i]:#010x}" for i in registers])
 
     def condition_passed(self, cond: int) -> bool:
-        if (cond >> 1) == 0b000:  # EQ and NE
+        if (cond >> 1) == 0b000:  # EQ or NE
             result = self.apsr_z
-        else:  # Eventually this clause should be deleted
+        elif (cond >> 1) == 0b001:  # CS or CC
+            result = self.apsr_c
+        elif (cond >> 1) == 0b010:  # MI or PL
+            result = self.apsr_n
+        elif (cond >> 1) == 0b011:  # VS or VC
+            result = self.apsr_v
+        elif (cond >> 1) == 0b100:  # HI or LS
+            result = self.apsr_c and not self.apsr_z
+        elif (cond >> 1) == 0b101:  # GE or LT
+            result = (self.apsr_n == self.apsr_v)
+        elif (cond >> 1) == 0b110:  # GT or LE
+            result = (self.apsr_n == self.apsr_v) and not self.apsr_z
+        else:  # AL
             result = True
         if (cond & 1) and cond != 0b1111:
             return not result
@@ -319,6 +343,16 @@ class Rp2040:
                 self.pc += imm32
             else:
                 print("    Branch ignored!!!")
+        # CMP (immediate)
+        elif (opcode >> 11) == 0b00101:
+            print("  CMP (immediate) instruction...")
+            n = ((opcode >> 8) & 0x07)
+            imm = opcode & 0xFF
+            result, c, v = add_with_carry(self.registers[n], ~imm, True)
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
+            self.apsr_c = c
+            self.apsr_v = v
         # LDR (immediate)
         elif (opcode >> 11) == 0b01101:
             print("  LDR (immediate) instruction...")

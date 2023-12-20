@@ -1,10 +1,10 @@
 import pytest
-from rpy2040.rpy2040 import Rp2040, SRAM_START, IGNORE_BL
+from rpy2040.rpy2040 import Rp2040, SRAM_START, IGNORE_BL, add_with_carry
 
 SP_START = 0x20000100
 
 
-class TestExecuteInstruction:
+class TestInstructions:
 
     def test_push(self):
         rp = Rp2040(pc=0x10000000, sp=SP_START)
@@ -163,3 +163,39 @@ class TestExecuteInstruction:
         rp.registers[5] = 0x42
         rp.execute_intstruction()
         assert rp.apsr_z is True
+        assert rp.apsr_c is True
+        assert rp.apsr_n is False
+        assert rp.apsr_v is False
+
+
+class TestAddWithCarry:
+
+    def test_subtract_no_flags(self):
+        result, c, v = add_with_carry(0x00b71b00, ~0xb71b0000, True)
+        assert result == 1234967296
+        assert c is False
+        assert v is False
+
+    def test_add_no_flags(self):
+        result, c, v = add_with_carry(200, 400, False)
+        assert result == 600
+        assert c is False
+        assert v is False
+
+    def test_add_carry_out(self):
+        result, c, v = add_with_carry(0xFFFFFFFFFF, 1, False)
+        assert result == 0
+        assert c is True
+        assert v is False
+
+    def test_subtract_carry_out(self):
+        result, c, v = add_with_carry(0xFFFFFFFFFF, ~0x00000008, True)
+        assert result == 4294967287
+        assert c is True
+        assert v is False
+
+    def test_subtract_overflow(self):
+        result, c, v = add_with_carry(0, ~0x80000000, True)
+        assert result == 2147483648
+        assert c is False
+        assert v is True

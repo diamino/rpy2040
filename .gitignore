@@ -13,3 +13,6 @@ coverage.xml
 
 # Binaries folder
 examples/
+
+# rp2040js folder
+rp2040js/
