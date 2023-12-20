@@ -1,4 +1,3 @@
-import pytest
 from rpy2040.rpy2040 import Rp2040, SRAM_START, IGNORE_BL, add_with_carry
 
 SP_START = 0x20000100
@@ -15,7 +14,8 @@ class TestInstructions:
         rp.flash[0:2] = b'\x70\xb5'  # push	{r4, r5, r6, lr}
         rp.execute_intstruction()
         assert rp.sp == SP_START - 16
-        assert rp.sram[SP_START-SRAM_START-16:SP_START-SRAM_START] == b'*\x00\x00\x00+\x00\x00\x00,\x00\x00\x00-\x00\x00\x00'
+        wordstring = b'*\x00\x00\x00+\x00\x00\x00,\x00\x00\x00-\x00\x00\x00'
+        assert rp.sram[SP_START-SRAM_START-16:SP_START-SRAM_START] == wordstring
 
     def test_movs(self):
         rp = Rp2040(pc=0x10000000)

@@ -348,6 +348,7 @@ class Rp2040:
             print("  CMP (immediate) instruction...")
             n = ((opcode >> 8) & 0x07)
             imm = opcode & 0xFF
+            print(f"    Compare R[{n}] with {imm:#x}...")
             result, c, v = add_with_carry(self.registers[n], ~imm, True)
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
