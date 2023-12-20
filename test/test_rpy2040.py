@@ -157,7 +157,7 @@ class TestInstructions:
         rp.execute_intstruction()
         assert rp.registers[5] == 0x0000cafe
 
-    def test_cmp(self):
+    def test_cmp_immediate(self):
         rp = Rp2040(pc=0x10000000)
         rp.flash[0:2] = b'\x42\x2d'  # cmp	r5, #66	@ 0x42
         rp.registers[5] = 0x42
@@ -166,6 +166,17 @@ class TestInstructions:
         assert rp.apsr_c is True
         assert rp.apsr_n is False
         assert rp.apsr_v is False
+
+    def test_cmp_register(self):
+        rp = Rp2040(pc=0x10000000)
+        rp.flash[0:2] = b'\xa5\x42'  # cmp	r5, r4
+        rp.registers[4] = 0
+        rp.registers[5] = 0x80000000
+        rp.execute_intstruction()
+        assert rp.apsr_z is False
+        assert rp.apsr_c is False
+        assert rp.apsr_n is True
+        assert rp.apsr_v is True
 
 
 class TestAddWithCarry:

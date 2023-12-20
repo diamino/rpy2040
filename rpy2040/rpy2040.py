@@ -345,10 +345,21 @@ class Rp2040:
         # CMP (immediate)
         elif (opcode >> 11) == 0b00101:
             print("  CMP (immediate) instruction...")
-            n = ((opcode >> 8) & 0x07)
+            n = ((opcode >> 8) & 0x7)
             imm = opcode & 0xFF
             print(f"    Compare R[{n}] with {imm:#x}...")
             result, c, v = add_with_carry(self.registers[n], ~imm, True)
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
+            self.apsr_c = c
+            self.apsr_v = v
+        # CMP (register) T1
+        elif (opcode >> 6) == 0b0100001010:
+            print("  CMP (register) T1 instruction...")
+            n = ((opcode >> 3) & 0x7)
+            m = opcode & 0x7
+            print(f"    Compare R[{n}] with R[{m}]...")
+            result, c, v = add_with_carry(self.registers[n], ~self.registers[m], True)
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
             self.apsr_c = c
