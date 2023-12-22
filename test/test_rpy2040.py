@@ -224,6 +224,28 @@ class TestInstructions:
         rp.execute_intstruction()
         assert rp.registers[1] == 0x000000ca
 
+    def test_adc(self):
+        rp = Rp2040(pc=0x10000000)
+        opcode = asm.opcodeADC(rdn=1, rm=4)
+        rp.flash[0:len(opcode)] = opcode  # adcs r1, r4
+        rp.apsr_c = True
+        rp.registers[1] = 0xfffffff0
+        rp.registers[4] = 0x0000000f
+        rp.execute_intstruction()
+        assert rp.registers[1] == 0
+        assert rp.apsr_z is True
+        assert rp.apsr_c is True
+        assert rp.apsr_n is False
+        assert rp.apsr_v is False
+
+    def test_uxtb(self):
+        rp = Rp2040(pc=0x10000000)
+        opcode = asm.opcodeUXTB(rd=1, rm=3)
+        rp.flash[0:len(opcode)] = opcode  # adcs r1, r4
+        rp.registers[3] = 0x01020304
+        rp.execute_intstruction()
+        assert rp.registers[1] == 0x00000004
+
 
 class TestAddWithCarry:
 

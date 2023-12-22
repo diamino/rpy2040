@@ -7,6 +7,9 @@ import array
 import ctypes
 from typing import Optional, Iterable, Protocol
 
+DEBUG_REGISTERS = True
+DEBUG_INSTRUCTIONS = False
+
 IGNORE_BL = True
 
 FLASH_START = 0x10000000
@@ -18,6 +21,8 @@ SIO_SIZE = 0x1000000
 
 UART0_BASE = 0x40034000
 UART0_SIZE = 0x1000
+UARTDR = 0x00
+UARTFR = 0x18
 
 SP_START = 0x20041000
 PC_START = 0x10000000
@@ -121,10 +126,13 @@ class Uart(MemoryRegion):
         self.uartfr = 0
 
     def write_uint32(self, address: int, value: int) -> None:
-        print(f"UART: Write of value {value:x} to UART address {address:x}...")
+        if address == UARTDR:
+            print(f"UART: Write to data register [{value:#x}/'{chr(value)}']...")
+        else:
+            print(f"UART: Write of value {value:#x} to UART address {address:#x}...")
 
     def read_uint32(self, address: int) -> int:
-        if address == 0x18:  # UARTFR
+        if address == UARTFR:
             return self.uartfr
         else:
             raise MemoryError
@@ -286,7 +294,8 @@ class Rp2040:
             return result
 
     def execute_intstruction(self) -> None:
-        print(f"\nPC: {self.pc:x}\tSP: {self.sp:x}\tAPSR: {self.apsr:08x}")
+        if DEBUG_REGISTERS:
+            print(f"\nPC: {self.pc:x}\tSP: {self.sp:x}\tAPSR: {self.apsr:08x}")
         # instr_loc = self.pc - FLASH_START
         # opcode = int.from_bytes(self.flash[instr_loc:instr_loc+2], "little")
         opcode = self.mmu.read_uint16(self.pc)
@@ -298,13 +307,27 @@ class Rp2040:
             opcode2 = self.mmu.read_uint16(self.pc)
             self.pc += 2
 
-        print(self.str_registers(registers=range(4)))
-        print(self.str_registers(registers=range(4, 8)))
-        print(self.str_registers(registers=range(8, 12)))
-        print(self.str_registers(registers=range(12, 16)))
-        print(f"Current opcode is [{opcode:04x}]")
+        if DEBUG_REGISTERS:
+            print(self.str_registers(registers=range(4)))
+            print(self.str_registers(registers=range(4, 8)))
+            print(self.str_registers(registers=range(8, 12)))
+            print(self.str_registers(registers=range(12, 16)))
+            print(f"Current opcode is [{opcode:04x}]")
+        # ADC
+        if (opcode >> 6) == 0b0100000101:
+            print("  ADC instruction...")
+            m = (opcode >> 3) & 0x07
+            dn = opcode & 0x7
+            # TODO: special case for SP register (13)
+            print(f"    Add R[{m}] to R[{dn}] with carry")
+            result, c, v = add_with_carry(self.registers[dn], self.registers[m], self.apsr_c)
+            self.registers[dn] = result
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
+            self.apsr_c = c
+            self.apsr_v = v
         # ADD (immediate) T2
-        if (opcode >> 11) == 0b00110:
+        elif (opcode >> 11) == 0b00110:
             print("  ADD (immediate) T2 instruction...")
             dn = ((opcode >> 8) & 0x7)
             imm = opcode & 0xFF
@@ -484,7 +507,7 @@ class Rp2040:
             print("  RSB / NEG instruction...")
             n = ((opcode >> 3) & 0x7)
             d = opcode & 0x7
-            print(f"    Subtract R[{n}] from 0 ...")
+            print(f"    Subtract R[{n}] from 0 and store in R[{d}]...")
             result, c, v = add_with_carry(~self.registers[n], 0, True)
             self.registers[d] = result
             self.apsr_n = bool(result & (1 << 31))
@@ -505,7 +528,7 @@ class Rp2040:
             print("  SUB (immediate) T2 instruction...")
             dn = ((opcode >> 8) & 0x7)
             imm = opcode & 0xFF
-            print(f"    Subtract {imm:#x} from R[{dn}] ...")
+            print(f"    Subtract {imm:#x} from R[{dn}]...")
             result, c, v = add_with_carry(self.registers[dn], ~imm, True)
             self.registers[dn] = result
             self.apsr_n = bool(result & (1 << 31))
@@ -521,6 +544,12 @@ class Rp2040:
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
             print(f"  APSR: {self.apsr:08x}")
+        # UXTB
+        elif (opcode >> 6) == 0b1011001011:
+            print("  UXTB instruction...")
+            d = opcode & 0x7
+            m = (opcode >> 3) & 0x7
+            self.registers[d] = self.registers[m] & 0xFF
         else:
             print(" Instruction not implemented!!!!")
             raise NotImplementedError
@@ -543,7 +572,7 @@ def main():  # pragma: no cover
 
     rp = Rp2040(pc=args.entry_point)
     loadbin(args.filename, rp.flash)
-    for _ in range(60):
+    for _ in range(280):
         rp.execute_intstruction()
 
 

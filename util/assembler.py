@@ -5,6 +5,11 @@ Diamino 2023
 """
 
 
+def opcodeADC(rdn: int, rm: int) -> bytes:
+    opcode = (0b0100000101 << 6) | ((rm & 0x7) << 3) | (rdn & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeADDT2(rdn: int, imm8: int) -> bytes:
     opcode = (0b00110 << 11) | ((rdn & 0x7) << 8) | (imm8 & 0xFF)
     return opcode.to_bytes(2, 'little')
@@ -26,4 +31,9 @@ def opcodeRSB(rd: int, rn: int) -> bytes:
 
 def opcodeSUBT2(rdn: int, imm8: int) -> bytes:
     opcode = (0b00111 << 11) | ((rdn & 0x7) << 8) | (imm8 & 0xFF)
+    return opcode.to_bytes(2, 'little')
+
+
+def opcodeUXTB(rd: int, rm: int) -> bytes:
+    opcode = (0b1011001011 << 6) | ((rm & 0x7) << 3) | (rd & 0x7)
     return opcode.to_bytes(2, 'little')
