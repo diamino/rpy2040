@@ -7,11 +7,13 @@ import array
 import ctypes
 from typing import Optional, Iterable, Protocol
 
-DEBUG_REGISTERS = False
+DEBUG_REGISTERS = True
 DEBUG_INSTRUCTIONS = False
 
 IGNORE_BL = True
 
+ROM_START = 0x00000000
+ROM_SIZE = 16 * 1024  # 16kB
 FLASH_START = 0x10000000
 FLASH_SIZE = 16 * 1024 * 1024  # 16MB
 SRAM_START = 0x20000000
@@ -175,20 +177,27 @@ class ByteArrayMemory(MemoryRegion):
 
 class Rp2040:
 
-    def __init__(self, pc: int = PC_START, sp: int = SP_START):
+    def __init__(self):
         self.registers = array.array('l', 16*[0])
         self.apsr: int = 0
-        self.pc = pc
-        self.sp = sp
+        self.pc = PC_START
+        self.sp = SP_START
         self.mmu = Mmu()
+        self.rom_region = ByteArrayMemory(ROM_START, ROM_SIZE)
         self.sram_region = ByteArrayMemory(SRAM_START, SRAM_SIZE)
         self.flash_region = ByteArrayMemory(FLASH_START, FLASH_SIZE, 0xFF)
+        self.rom = self.rom_region.memory
         self.sram = self.sram_region.memory
         self.flash = self.flash_region.memory
         self.mmu.register_region("flash", self.flash_region)
         self.mmu.register_region("sram", self.sram_region)
+        self.mmu.register_region("rom", self.rom_region)
         self.mmu.register_region("sio", Sio())
         self.mmu.register_region("uart0", Uart())
+
+    def init_from_bootrom(self):
+        self.sp = self.rom_region.read(0)
+        self.pc = self.rom_region.read(4) & ~1
 
     @property
     def pc(self) -> int:
@@ -554,13 +563,23 @@ def main():  # pragma: no cover
 
     parser.add_argument('filename', type=str,
                         help='The binary (.bin) file to execute in the emulator')
-    parser.add_argument('entry_point', type=base16, nargs='?', default="0x10000000",
-                        help='The entry point for execution in hex format (eg. 0x10000354). Defaults to 0x10000000')
+    parser.add_argument('-e', '--entry_point', type=base16, nargs='?', const="0x10000000", default=None,
+                        help='The entry point for execution in hex format (eg. 0x10000354). Defaults to 0x10000000 if no bootrom is loaded.')
+    parser.add_argument('-b', '--bootrom', type=str,
+                        help='The binary (.bin) file that holds the bootrom code. Defaults to bootrom.bin')
 
     args = parser.parse_args()
 
-    rp = Rp2040(pc=args.entry_point)
+    rp = Rp2040()
     loadbin(args.filename, rp.flash)
+
+    if args.bootrom:
+        loadbin(args.bootrom, rp.rom)
+        rp.init_from_bootrom()
+
+    if args.entry_point:
+        rp.pc = args.entry_point
+
     for _ in range(280):
         rp.execute_intstruction()
 
