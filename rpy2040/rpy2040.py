@@ -7,7 +7,7 @@ import array
 import ctypes
 from typing import Optional, Iterable, Protocol
 
-DEBUG_REGISTERS = True
+DEBUG_REGISTERS = False
 DEBUG_INSTRUCTIONS = False
 
 IGNORE_BL = True
@@ -33,10 +33,10 @@ class MemoryRegion(Protocol):
     base_address: int
     size: int
 
-    def write_uint32(self, address: int, value: int) -> None:
+    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
         ...
 
-    def read_uint32(self, address: int) -> int:
+    def read(self, address: int, num_bytes: int = 4) -> int:
         ...
 
 
@@ -94,28 +94,28 @@ class Mmu:
         print(f"MMU: No matching region found for address {address:#010x}!!!")
         return None
 
-    def write_uint32(self, address: int, value: int) -> None:
+    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
         region = self.find_region(address)
         if region:
-            region.write_uint32(address - region.base_address, value)
+            region.write(address - region.base_address, value, num_bytes)
+
+    def read(self, address: int, num_bytes: int = 4) -> int:
+        region = self.find_region(address)
+        if region:
+            return region.read(address - region.base_address, num_bytes)
+        return 0
+
+    def write_uint32(self, address: int, value: int) -> None:
+        self.write(address, value, 4)
 
     def read_uint32(self, address: int) -> int:
-        region = self.find_region(address)
-        if region:
-            return region.read_uint32(address - region.base_address)
-        return 0
+        return self.read(address, 4)
 
     def read_uint16(self, address: int) -> int:
-        region = self.find_region(address)
-        if region:
-            return region.read_uint16(address - region.base_address)
-        return 0
+        return self.read(address, 2)
 
     def read_uint8(self, address: int) -> int:
-        region = self.find_region(address)
-        if region:
-            return region.read_uint8(address - region.base_address)
-        return 0
+        return self.read(address, 1)
 
 
 class Uart(MemoryRegion):
@@ -125,13 +125,13 @@ class Uart(MemoryRegion):
         self.size = size
         self.uartfr = 0
 
-    def write_uint32(self, address: int, value: int) -> None:
+    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
         if address == UARTDR:
             print(f"UART: Write to data register [{value:#x}/'{chr(value)}']...")
         else:
             print(f"UART: Write of value {value:#x} to UART address {address:#x}...")
 
-    def read_uint32(self, address: int) -> int:
+    def read(self, address: int, num_bytes: int = 4) -> int:
         if address == UARTFR:
             return self.uartfr
         else:
@@ -144,7 +144,7 @@ class Sio(MemoryRegion):
         self.base_address = base_address
         self.size = size
 
-    def write_uint32(self, address: int, value: int) -> None:
+    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
         if address == 20:  # GPIO SET
             pinlist = get_pinlist(value)
             print(f">> GPIO pins set to HIGH/set: {pinlist}")
@@ -154,12 +154,8 @@ class Sio(MemoryRegion):
         else:
             print(f">> Write of value [{value}/{value:#x}] to SIO address [{address + self.base_address:#010x}]")
 
-    def read_uint32(self, address: int) -> int:
-        print(f"<< Read from SIO address [{address + self.base_address:#010x}]")
-        return 0
-
-    def read_uint16(self, address: int) -> int:
-        print(f"<< Read from SIO address [{address + self.base_address:#010x}]")
+    def read(self, address: int, num_bytes: int = 4) -> int:
+        print(f"<< Read {num_bytes} bytes from SIO address [{address + self.base_address:#010x}]")
         return 0
 
 
@@ -170,17 +166,11 @@ class ByteArrayMemory(MemoryRegion):
         self.size = size
         self.memory = bytearray(size * [preinit])
 
-    def write_uint32(self, address: int, value: int) -> None:
-        self.memory[address:address+4] = value.to_bytes(4, byteorder='little')
+    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
+        self.memory[address:address+num_bytes] = value.to_bytes(num_bytes, byteorder='little')
 
-    def read_uint32(self, address: int) -> int:
-        return int.from_bytes(self.memory[address:address+4], 'little')
-
-    def read_uint16(self, address: int) -> int:
-        return int.from_bytes(self.memory[address:address+2], 'little')
-
-    def read_uint8(self, address: int) -> int:
-        return self.memory[address]
+    def read(self, address: int, num_bytes: int = 4) -> int:
+        return int.from_bytes(self.memory[address:address+num_bytes], 'little')
 
 
 class Rp2040:
@@ -296,8 +286,7 @@ class Rp2040:
     def execute_intstruction(self) -> None:
         if DEBUG_REGISTERS:
             print(f"\nPC: {self.pc:x}\tSP: {self.sp:x}\tAPSR: {self.apsr:08x}")
-        # instr_loc = self.pc - FLASH_START
-        # opcode = int.from_bytes(self.flash[instr_loc:instr_loc+2], "little")
+        # TODO: Opcode loading can be sped up by referencing the XIP flash directly
         opcode = self.mmu.read_uint16(self.pc)
         self.pc += 2
         opcode2 = 0
@@ -378,7 +367,7 @@ class Rp2040:
             i2 = not (j2 ^ s)
             print(f"    {j1=} {j2=} {s=} {i1=} {i2=} {imm10=} {imm11=}")
             imm23 = int(i1) << 23 | int(i2) << 22 | imm10 << 12 | imm11 << 1
-            imm32 = ctypes.c_int32((0b11111111 if s else 0) << 24 | imm23).value
+            imm32 = sign_extend(imm23, 23)
             print(f"    {imm32=}")
             print(f"    Branch to: {(self.pc + imm32):#010x}")
             if not IGNORE_BL:
