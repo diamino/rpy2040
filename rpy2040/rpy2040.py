@@ -10,7 +10,7 @@ from typing import Optional, Iterable, Protocol
 DEBUG_REGISTERS = True
 DEBUG_INSTRUCTIONS = False
 
-IGNORE_BL = True
+IGNORE_BL = False
 
 ROM_START = 0x00000000
 ROM_SIZE = 16 * 1024  # 16kB
@@ -25,6 +25,10 @@ UART0_BASE = 0x40034000
 UART0_SIZE = 0x1000
 UARTDR = 0x00
 UARTFR = 0x18
+
+CORTEX_REGISTER_BASE = 0xe0000000
+CORTEX_REGISTER_SIZE = 0xeda4
+VTOR = 0xed08
 
 SP_START = 0x20041000
 PC_START = 0x10000000
@@ -175,6 +179,22 @@ class ByteArrayMemory(MemoryRegion):
         return int.from_bytes(self.memory[address:address+num_bytes], 'little')
 
 
+class CortexRegisters(MemoryRegion):
+
+    def __init__(self, base_address: int = CORTEX_REGISTER_BASE, size: int = CORTEX_REGISTER_SIZE):
+        self.base_address = base_address
+        self.size = size
+
+    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
+        pass
+
+    def read(self, address: int, num_bytes: int = 4) -> int:
+        if address == VTOR:
+            return 0
+        print(f"Read from unimplemented Cortex register [{address:#x}]!!!")
+        return 0
+
+
 class Rp2040:
 
     def __init__(self):
@@ -186,18 +206,20 @@ class Rp2040:
         self.rom_region = ByteArrayMemory(ROM_START, ROM_SIZE)
         self.sram_region = ByteArrayMemory(SRAM_START, SRAM_SIZE)
         self.flash_region = ByteArrayMemory(FLASH_START, FLASH_SIZE, 0xFF)
+        self.cortex_region = CortexRegisters(CORTEX_REGISTER_BASE, CORTEX_REGISTER_SIZE)
         self.rom = self.rom_region.memory
         self.sram = self.sram_region.memory
         self.flash = self.flash_region.memory
         self.mmu.register_region("flash", self.flash_region)
         self.mmu.register_region("sram", self.sram_region)
         self.mmu.register_region("rom", self.rom_region)
+        self.mmu.register_region("cortex0", self.cortex_region)
         self.mmu.register_region("sio", Sio())
         self.mmu.register_region("uart0", Uart())
 
     def init_from_bootrom(self):
         self.sp = self.rom_region.read(0)
-        self.pc = self.rom_region.read(4) & ~1
+        self.pc = self.rom_region.read(4) & 0xfffffffe
 
     @property
     def pc(self) -> int:
@@ -294,7 +316,7 @@ class Rp2040:
 
     def execute_intstruction(self) -> None:
         if DEBUG_REGISTERS:
-            print(f"\nPC: {self.pc:x}\tSP: {self.sp:x}\tAPSR: {self.apsr:08x}")
+            print(f"\nPC: {self.pc:#010x}\tSP: {self.sp:#010x}\tAPSR: {self.apsr:#010x}")
         # TODO: Opcode loading can be sped up by referencing the XIP flash directly
         opcode = self.mmu.read_uint16(self.pc)
         self.pc += 2
@@ -365,7 +387,7 @@ class Rp2040:
             print(f"    Branch to: {(self.pc + imm32 + 2):#010x}")
             self.pc += imm32 + 2
         # BL
-        elif (opcode >> 11) == 0b11110:
+        elif ((opcode >> 11) == 0b11110) and ((opcode2 >> 14) == 0b11):
             print("  BL instruction...")
             imm10 = opcode & 0x3ff
             imm11 = opcode2 & 0x7ff
@@ -406,6 +428,20 @@ class Rp2040:
             self.apsr_z = bool(result == 0)
             self.apsr_c = c
             self.apsr_v = v
+        # LDM
+        elif (opcode >> 11) == 0b11001:
+            print("  LDM instruction...")
+            n = (opcode >> 8) & 0x7
+            register_list = opcode & 0xff
+            address = self.registers[n]
+            wback = not ((register_list >> n) & 1)
+            print(f"    Destination registers[{register_list:#b}]\tSource address [{address:#010x}]")
+            for i in range(8):
+                if (register_list >> i) & 1:
+                    self.registers[i] = self.mmu.read_uint32(address)
+                    address += 4
+            if wback:
+                self.registers[n] += 4 * register_list.bit_count()
         # LDR (immediate)
         elif (opcode >> 11) == 0b01101:
             print("  LDR (immediate) instruction...")
@@ -468,6 +504,19 @@ class Rp2040:
             self.apsr_z = bool(result == 0)
             if shift_n > 0:
                 self.apsr_c = bool(result & (1 << 32))
+        # LSR (immediate)
+        elif (opcode >> 11) == 0b00001:
+            print("  LSR (immediate) instruction...")
+            m = (opcode >> 3) & 0x07
+            d = opcode & 0x07
+            imm5 = (opcode >> 6) & 0x1F
+            shift_n = imm5 if imm5 != 0 else 32
+            print(f"    Source R[{m}]\tDestination R[{d}]\tShift amount [{shift_n}]")
+            result = self.registers[m] >> shift_n
+            self.registers[d] = result & 0xFFFFFFFF
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
+            self.apsr_c = bool((self.registers[m] >> (shift_n - 1)) & 1)
         # MOVS
         elif (opcode >> 11) == 0b00100:
             print("  MOVS instruction...")
@@ -488,6 +537,17 @@ class Rp2040:
             if d != 15:
                 self.apsr_n = bool(result & (1 << 31))
                 self.apsr_z = bool(result == 0)
+        # MSR
+        elif ((opcode >> 5) == 0b11110011100) and ((opcode2 >> 14) == 0b10):
+            print("  MSR instruction...")
+            n = opcode & 0xf
+            sysm = opcode2 & 0xff
+            print(f"    Source R[{n}]\tDestination SYSm[{sysm}]")
+            # TODO: other registers like APSR, PRIMASK, etc
+            # TODO: privileged and unprivileged mode
+            if sysm >> 3 == 1:  # SP
+                if sysm & 0x7 == 0:  # MSP = SP_main
+                    self.sp = self.registers[n] & 0xfffffffc
         # PUSH
         elif (opcode >> 9) == 0b1011010:
             print("  PUSH instruction...")
@@ -563,8 +623,8 @@ def main():  # pragma: no cover
 
     parser.add_argument('filename', type=str,
                         help='The binary (.bin) file to execute in the emulator')
-    parser.add_argument('-e', '--entry_point', type=base16, nargs='?', const="0x10000000", default=None,
-                        help='The entry point for execution in hex format (eg. 0x10000354). Defaults to 0x10000000 if no bootrom is loaded.')
+    parser.add_argument('-e', '--entry_point', type=base16, nargs='?', const="0x100001e8", default=None,
+                        help='The entry point for execution in hex format (eg. 0x10000354). Defaults to 0x100001e8 if no bootrom is loaded.')
     parser.add_argument('-b', '--bootrom', type=str,
                         help='The binary (.bin) file that holds the bootrom code. Defaults to bootrom.bin')
 
@@ -580,7 +640,7 @@ def main():  # pragma: no cover
     if args.entry_point:
         rp.pc = args.entry_point
 
-    for _ in range(280):
+    for _ in range(10):
         rp.execute_intstruction()
 
 

@@ -51,6 +51,17 @@ class TestInstructions:
         assert rp.apsr_z is False
         assert rp.apsr_c is True
 
+    def test_lsr_immediate(self):
+        rp = Rp2040()
+        rp.registers[4] = 0x00000074
+        opcode = asm.opcodeLSRimm(rd=1, rm=4, imm5=3)
+        rp.flash[0:len(opcode)] = opcode  # lsrs r1, r4, #3
+        rp.execute_intstruction()
+        assert rp.registers[1] == 0x0000000e
+        assert rp.apsr_n is False
+        assert rp.apsr_z is False
+        assert rp.apsr_c is True
+
     def test_bl(self):
         if IGNORE_BL:
             assert True
@@ -60,6 +71,7 @@ class TestInstructions:
             rp.flash[0x360:0x364] = b'\x00\xf0\x0a\xf8'  # bl	10000378
             rp.execute_intstruction()
             assert rp.pc == 0x10000378
+            assert rp.lr == 0x10000365
 
     def test_str_immediate(self):
         rp = Rp2040()
@@ -250,6 +262,26 @@ class TestInstructions:
         rp.registers[3] = 0x01020304
         rp.execute_intstruction()
         assert rp.registers[1] == 0x00000004
+
+    def test_ldm(self):
+        rp = Rp2040()
+        opcode = asm.opcodeLDM(rn=0, registers=(1, 2))
+        rp.flash[0:len(opcode)] = opcode  # ldmia	r0!, {r1, r2}
+        rp.registers[0] = 0x20000618
+        rp.sram[0x618:0x618+8] = b'\xbe\xba\xfe\xca\x45\x44\x43\x42'
+        rp.execute_intstruction()
+        assert rp.registers[1] == 0xcafebabe
+        assert rp.registers[2] == 0x42434445
+        assert rp.registers[0] == 0x20000618 + 8
+
+    def test_msr_msp(self):
+        rp = Rp2040()
+        opcode = asm.opcodeMSR(spec_reg=asm.SYSM_MSP, rn=asm.R1)  # msr	MSP, r1
+        rp.flash[0:len(opcode)] = opcode
+        rp.sp = 0
+        rp.registers[1] = 0x2000061a
+        rp.execute_intstruction()
+        assert rp.sp == 0x20000618
 
 
 class TestAddWithCarry:
