@@ -314,7 +314,7 @@ class Rp2040:
         else:
             return result
 
-    def execute_intstruction(self) -> None:
+    def execute_instruction(self) -> None:
         if DEBUG_REGISTERS:
             print(f"\nPC: {self.pc:#010x}\tSP: {self.sp:#010x}\tAPSR: {self.apsr:#010x}")
         # TODO: Opcode loading can be sped up by referencing the XIP flash directly
@@ -386,6 +386,15 @@ class Rp2040:
             print(f"    {imm32=}")
             print(f"    Branch to: {(self.pc + imm32 + 2):#010x}")
             self.pc += imm32 + 2
+        # BIC
+        elif (opcode >> 6) == 0b0100001110:
+            print("  BIC instruction...")
+            dn = opcode & 0x7
+            m = (opcode >> 3) & 0x7
+            result = self.registers[dn] & ~self.registers[m]
+            self.registers[dn] = result
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
         # BL
         elif ((opcode >> 11) == 0b11110) and ((opcode2 >> 14) == 0b11):
             print("  BL instruction...")
@@ -406,6 +415,14 @@ class Rp2040:
                 self.pc += imm32
             else:
                 print("    Branch ignored!!!")
+        # BX
+        elif (opcode >> 7) == 0b010001110:
+            print("  BX instruction...")
+            m = (opcode >> 3) & 0xf
+            # TODO: handle exception cases
+            address = self.registers[m] & 0xfffffffe
+            print(f"    Branch to: {address:#010x}")
+            self.pc = address
         # CMP (immediate)
         elif (opcode >> 11) == 0b00101:
             print("  CMP (immediate) instruction...")
@@ -623,8 +640,8 @@ def main():  # pragma: no cover
 
     parser.add_argument('filename', type=str,
                         help='The binary (.bin) file to execute in the emulator')
-    parser.add_argument('-e', '--entry_point', type=base16, nargs='?', const="0x100001e8", default=None,
-                        help='The entry point for execution in hex format (eg. 0x10000354). Defaults to 0x100001e8 if no bootrom is loaded.')
+    parser.add_argument('-e', '--entry_point', type=base16, nargs='?', const="0x10000000", default=None,
+                        help='The entry point for execution in hex format (eg. 0x10000354). Defaults to 0x10000000 if no bootrom is loaded.')  # noqa: E501
     parser.add_argument('-b', '--bootrom', type=str,
                         help='The binary (.bin) file that holds the bootrom code. Defaults to bootrom.bin')
 
@@ -641,7 +658,7 @@ def main():  # pragma: no cover
         rp.pc = args.entry_point
 
     for _ in range(10):
-        rp.execute_intstruction()
+        rp.execute_instruction()
 
 
 if __name__ == "__main__":  # pragma: no cover

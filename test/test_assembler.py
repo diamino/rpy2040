@@ -9,6 +9,12 @@ class TestAssembler:
     def test_opcodeADDT2(self):
         assert asm.opcodeADDT2(asm.R1, 1) == b'\x01\x31'
 
+    def test_opcodeBIC(self):
+        assert asm.opcodeBIC(asm.R0, asm.R1) == b'\x88\x43'
+
+    def test_opcodeBX(self):
+        assert asm.opcodeBX(asm.R2) == b'\x10\x47'
+
     def test_opcodeLDM(self):
         assert asm.opcodeLDM(asm.R0, (asm.R1, asm.R2)) == b'\x06\xc8'
 

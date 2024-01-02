@@ -37,6 +37,16 @@ def opcodeADDT2(rdn: int, imm8: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeBIC(rdn: int, rm: int) -> bytes:
+    opcode = (0b0100001110 << 6) | ((rm & 0x7) << 3) | (rdn & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
+def opcodeBX(rm: int) -> bytes:
+    opcode = (0b010001110 << 7) | ((rm & 0xf) << 3)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeLDM(rn: int, registers: tuple[int, ...]) -> bytes:
     register_list = 0
     for i in registers:
