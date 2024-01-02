@@ -330,6 +330,19 @@ class TestInstructions:
         rp.execute_instruction()
         assert rp.sram[40:44] == b'\xfe\xca\x00\x00'
 
+    def test_pop(self):
+        rp = Rp2040()
+        opcode = asm.opcodePOP(registers=(asm.R0, asm.R1, asm.PC))  # pop	{r0, r1, pc}
+        rp.flash[0:2] = opcode
+        wordstring = b'\x42\x00\x00\x00\x01\x00\x00\x00\xc7\x00\x00\x10'
+        rp.sram[SP_START-SRAM_START-12:SP_START-SRAM_START] = wordstring
+        rp.sp = SP_START - 12
+        rp.execute_instruction()
+        assert rp.sp == SP_START
+        assert rp.pc == 0x100000c6
+        assert rp.registers[0] == 0x42
+        assert rp.registers[1] == 0x01
+
 
 class TestAddWithCarry:
 

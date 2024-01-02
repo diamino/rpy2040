@@ -593,6 +593,19 @@ class Rp2040:
             if sysm >> 3 == 1:  # SP
                 if sysm & 0x7 == 0:  # MSP = SP_main
                     self.sp = self.registers[n] & 0xfffffffc
+        # POP
+        elif (opcode >> 9) == 0b1011110:
+            print("  POP instruction...")
+            p = (opcode >> 8) & 0x1
+            register_list = (p << 15) | opcode & 0xff
+            address = self.sp
+            for i in range(8):
+                if (register_list & (1 << i)):
+                    self.registers[i] = self.mmu.read_uint32(address)
+                    address += 4
+            if p:
+                self.pc = self.mmu.read_uint32(address) & 0xfffffffe
+            self.sp += 4 * register_list.bit_count()
         # PUSH
         elif (opcode >> 9) == 0b1011010:
             print("  PUSH instruction...")

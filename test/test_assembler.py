@@ -30,6 +30,9 @@ class TestAssembler:
     def test_opcodeNEG(self):
         assert asm.opcodeNEG(asm.R4, asm.R1) == b'\x4c\x42'
 
+    def test_opcodePOP(self):
+        assert asm.opcodePOP((asm.R0, asm.R1, asm.PC)) == b'\x03\xbd'
+
     def test_opcodeRSB(self):
         assert asm.opcodeRSB(asm.R4, asm.R1) == b'\x4c\x42'
 

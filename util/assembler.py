@@ -74,6 +74,15 @@ def opcodeNEG(rd: int, rn: int) -> bytes:
     return opcodeRSB(rd, rn)
 
 
+def opcodePOP(registers: tuple[int, ...]) -> bytes:
+    register_list = 0
+    for i in registers:
+        register_list |= 1 << i
+    p = (register_list >> 15) & 1
+    opcode = (0b1011110 << 9) | (p << 8) | (register_list & 0xff)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeRSB(rd: int, rn: int) -> bytes:
     opcode = (0b0100001001 << 6) | ((rn & 0x7) << 3) | (rd & 0x7)
     return opcode.to_bytes(2, 'little')
