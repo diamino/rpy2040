@@ -371,6 +371,16 @@ class TestInstructions:
         assert rp.sram[0x618:0x618+8] == b'\xbe\xba\xfe\xca\x45\x44\x43\x42'
         assert rp.registers[1] == 0x20000618 + 8
 
+    def test_blx(self):
+        rp = Rp2040()
+        rp.pc = 0x10000376
+        opcode = asm.opcodeBLX(rm=asm.R1)  # blx r1
+        rp.flash[0x376:0x378] = opcode
+        rp.registers[1] = 0x20000043
+        rp.execute_instruction()
+        assert rp.pc == 0x20000042
+        assert rp.lr == 0x10000377
+
 
 class TestAddWithCarry:
 

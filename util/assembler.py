@@ -47,6 +47,11 @@ def opcodeBIC(rdn: int, rm: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeBLX(rm: int) -> bytes:
+    opcode = (0b010001111 << 7) | ((rm & 0xf) << 3)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeBX(rm: int) -> bytes:
     opcode = (0b010001110 << 7) | ((rm & 0xf) << 3)
     return opcode.to_bytes(2, 'little')

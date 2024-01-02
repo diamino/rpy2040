@@ -15,6 +15,9 @@ class TestAssembler:
     def test_opcodeBIC(self):
         assert asm.opcodeBIC(asm.R0, asm.R1) == b'\x88\x43'
 
+    def test_opcodeBLX(self):
+        assert asm.opcodeBLX(asm.R1) == b'\x88\x47'
+
     def test_opcodeBX(self):
         assert asm.opcodeBX(asm.R2) == b'\x10\x47'
 

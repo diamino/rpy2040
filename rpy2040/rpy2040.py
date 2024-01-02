@@ -458,6 +458,14 @@ class Rp2040:
                 self.pc += imm32
             else:
                 print("    Branch ignored!!!")
+        # BLX
+        elif (opcode >> 7) == 0b010001111:
+            print("  BLX instruction...")
+            m = (opcode >> 3) & 0xf
+            address = self.registers[m] & 0xfffffffe
+            print(f"    Branch to: {address:#010x}")
+            self.lr = (self.pc - 2) | 0x1
+            self.pc = address
         # BX
         elif (opcode >> 7) == 0b010001110:
             print("  BX instruction...")
