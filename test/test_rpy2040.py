@@ -119,6 +119,15 @@ class TestInstructions:
         rp.execute_instruction()
         assert rp.pc == 0x20000042
 
+    def test_bx_lr(self):
+        rp = Rp2040()
+        rp.pc = 0x10000376
+        opcode = asm.opcodeBX(rm=asm.LR)  # bx lr
+        rp.flash[0x376:0x378] = opcode
+        rp.lr = 0x20000043
+        rp.execute_instruction()
+        assert rp.pc == 0x20000042
+
     def test_ldr_immediate(self):
         rp = Rp2040()
         rp.pc = 0x10000374
@@ -342,6 +351,25 @@ class TestInstructions:
         assert rp.pc == 0x100000c6
         assert rp.registers[0] == 0x42
         assert rp.registers[1] == 0x01
+
+    def test_adr(self):
+        rp = Rp2040()
+        rp.pc = 0x10000200
+        opcode = asm.opcodeADR(rd=asm.R4, imm8=13)
+        rp.flash[0x200:0x200+len(opcode)] = opcode  # add	r4, pc, #52
+        rp.execute_instruction()
+        assert rp.registers[4] == 0x10000234
+
+    def test_stm(self):
+        rp = Rp2040()
+        opcode = asm.opcodeSTM(rn=asm.R1, registers=(asm.R0, asm.R2))  # stmia	r1!, {r0, r2}
+        rp.flash[0:len(opcode)] = opcode
+        rp.registers[1] = 0x20000618
+        rp.registers[0] = 0xcafebabe
+        rp.registers[2] = 0x42434445
+        rp.execute_instruction()
+        assert rp.sram[0x618:0x618+8] == b'\xbe\xba\xfe\xca\x45\x44\x43\x42'
+        assert rp.registers[1] == 0x20000618 + 8
 
 
 class TestAddWithCarry:

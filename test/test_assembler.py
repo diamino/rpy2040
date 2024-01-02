@@ -9,6 +9,9 @@ class TestAssembler:
     def test_opcodeADDT2(self):
         assert asm.opcodeADDT2(asm.R1, 1) == b'\x01\x31'
 
+    def test_opcodeADR(self):
+        assert asm.opcodeADR(asm.R4, 13) == b'\x0d\xa4'
+
     def test_opcodeBIC(self):
         assert asm.opcodeBIC(asm.R0, asm.R1) == b'\x88\x43'
 
@@ -35,6 +38,9 @@ class TestAssembler:
 
     def test_opcodeRSB(self):
         assert asm.opcodeRSB(asm.R4, asm.R1) == b'\x4c\x42'
+
+    def test_opcodeSTM(self):
+        assert asm.opcodeSTM(asm.R1, (asm.R0,)) == b'\x01\xc1'
 
     def test_opcodeSTRreg(self):
         assert asm.opcodeSTRreg(asm.R1, asm.R3, asm.R2) == b'\x99\x50'

@@ -26,6 +26,7 @@ XIP_SSI_START = 0x18000000
 XIP_SSI_SIZE = 0x100
 # XIP SSI registers
 SSI_SR_OFFSET = 0x28
+SSI_DR0_OFFSET = 0x60
 # XIP SSI masks
 SSI_SR_TFE_BITS = 0x00000004
 SSI_SR_BUSY_BITS = 0x00000001
@@ -180,13 +181,20 @@ class XipSsi(MemoryRegion):
     def __init__(self, base_address: int = XIP_SSI_START, size: int = XIP_SSI_SIZE):
         self.base_address = base_address
         self.size = size
+        self.dr0 = 0
 
     def write(self, address: int, value: int, num_bytes: int = 4) -> None:
-        print(f">> Write of value [{value}/{value:#x}] to XIP_SSI address [{address + self.base_address:#010x}]")
+        if address == SSI_DR0_OFFSET:
+            if value == 0x05:  # CMD_READ_STATUS
+                self.dr0 = 0
+        else:
+            print(f">> Write of value [{value}/{value:#x}] to XIP_SSI address [{address + self.base_address:#010x}]")
 
     def read(self, address: int, num_bytes: int = 4) -> int:
         if address == SSI_SR_OFFSET:
             return SSI_SR_TFE_BITS  # Hardcoded that the transmit buffer is empty
+        elif address == SSI_DR0_OFFSET:
+            return self.dr0
         else:
             print(f"<< Read {num_bytes} bytes from XIP_SSI address [{address + self.base_address:#010x}]")
             return 0
@@ -394,6 +402,13 @@ class Rp2040:
             # TODO: special case for SP register (13)
             print(f"    Source R[{m}]\tDestination R[{dn}]")
             self.registers[dn] = self.registers[m] + self.registers[dn]
+        # ADR
+        elif (opcode >> 11) == 0b10100:
+            print("  ADR instruction...")
+            d = (opcode >> 8) & 0x7
+            imm32 = (opcode & 0xff) << 2
+            print(f"    Value [{imm32}]+PC \tDestination R[{d}]")
+            self.registers[d] = (self.pc & 0xfffffffc) + imm32
         # B T1
         elif (opcode >> 12) == 0b1101:
             print("  B T1 instruction...")
@@ -630,6 +645,18 @@ class Rp2040:
             self.apsr_z = bool(result == 0)
             self.apsr_c = c
             self.apsr_v = v
+        # STM
+        elif (opcode >> 11) == 0b11000:
+            print("  STM instruction...")
+            n = (opcode >> 8) & 0x7
+            register_list = opcode & 0xff
+            address = self.registers[n]
+            print(f"    Source registers[{register_list:#b}]\tDestination address [{address:#010x}]")
+            for i in range(8):
+                if (register_list >> i) & 1:
+                    self.mmu.write_uint32(address, self.registers[i])
+                    address += 4
+            self.registers[n] += 4 * register_list.bit_count()
         # STR immediate (T1)
         elif (opcode >> 11) == 0b01100:
             print("  STR (immediate) instruction...")

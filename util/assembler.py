@@ -37,6 +37,11 @@ def opcodeADDT2(rdn: int, imm8: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeADR(rd: int, imm8: int) -> bytes:
+    opcode = (0b10100 << 11) | ((rd & 0x7) << 8) | (imm8 & 0xff)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeBIC(rdn: int, rm: int) -> bytes:
     opcode = (0b0100001110 << 6) | ((rm & 0x7) << 3) | (rdn & 0x7)
     return opcode.to_bytes(2, 'little')
@@ -85,6 +90,14 @@ def opcodePOP(registers: tuple[int, ...]) -> bytes:
 
 def opcodeRSB(rd: int, rn: int) -> bytes:
     opcode = (0b0100001001 << 6) | ((rn & 0x7) << 3) | (rd & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
+def opcodeSTM(rn: int, registers: tuple[int, ...]) -> bytes:
+    register_list = 0
+    for i in registers:
+        register_list |= 1 << i
+    opcode = (0b11000 << 11) | ((rn & 0x7) << 8) | (register_list & 0xff)
     return opcode.to_bytes(2, 'little')
 
 
