@@ -79,6 +79,11 @@ def opcodeRSB(rd: int, rn: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeSTRreg(rt: int, rn: int, rm: int) -> bytes:
+    opcode = (0b0101000 << 9) | ((rm & 0x7) << 6) | ((rn & 0x7) << 3) | (rt & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeSUBT2(rdn: int, imm8: int) -> bytes:
     opcode = (0b00111 << 11) | ((rdn & 0x7) << 8) | (imm8 & 0xff)
     return opcode.to_bytes(2, 'little')

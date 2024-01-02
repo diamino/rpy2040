@@ -33,6 +33,9 @@ class TestAssembler:
     def test_opcodeRSB(self):
         assert asm.opcodeRSB(asm.R4, asm.R1) == b'\x4c\x42'
 
+    def test_opcodeSTRreg(self):
+        assert asm.opcodeSTRreg(asm.R1, asm.R3, asm.R2) == b'\x99\x50'
+
     def test_opcodeSUBT2(self):
         assert asm.opcodeSUBT2(asm.R1, 13) == b'\x0d\x39'
 

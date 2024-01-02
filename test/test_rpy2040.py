@@ -320,6 +320,16 @@ class TestInstructions:
         assert rp.apsr_n is False
         assert rp.apsr_z is True
 
+    def test_str_register(self):
+        rp = Rp2040()
+        opcode = asm.opcodeSTRreg(rt=asm.R1, rn=asm.R3, rm=asm.R2)  # str r1, [r3, r2]
+        rp.flash[0:2] = opcode
+        rp.registers[1] = 0xcafe
+        rp.registers[2] = 0x28
+        rp.registers[3] = SRAM_START
+        rp.execute_instruction()
+        assert rp.sram[40:44] == b'\xfe\xca\x00\x00'
+
 
 class TestAddWithCarry:
 

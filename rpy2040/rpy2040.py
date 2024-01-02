@@ -8,7 +8,7 @@ import ctypes
 from typing import Optional, Iterable, Protocol
 
 DEBUG_REGISTERS = True
-DEBUG_INSTRUCTIONS = False
+DEBUG_INSTRUCTIONS = True
 
 IGNORE_BL = False
 
@@ -20,6 +20,16 @@ SRAM_START = 0x20000000
 SRAM_SIZE = 264 * 1024  # 264kB
 SIO_START = 0xd0000000
 SIO_SIZE = 0x1000000
+
+# XIP SSI
+XIP_SSI_START = 0x18000000
+XIP_SSI_SIZE = 0x100
+# XIP SSI registers
+SSI_SR_OFFSET = 0x28
+# XIP SSI masks
+SSI_SR_TFE_BITS = 0x00000004
+SSI_SR_BUSY_BITS = 0x00000001
+
 
 UART0_BASE = 0x40034000
 UART0_SIZE = 0x1000
@@ -165,6 +175,23 @@ class Sio(MemoryRegion):
         return 0
 
 
+class XipSsi(MemoryRegion):
+
+    def __init__(self, base_address: int = XIP_SSI_START, size: int = XIP_SSI_SIZE):
+        self.base_address = base_address
+        self.size = size
+
+    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
+        print(f">> Write of value [{value}/{value:#x}] to XIP_SSI address [{address + self.base_address:#010x}]")
+
+    def read(self, address: int, num_bytes: int = 4) -> int:
+        if address == SSI_SR_OFFSET:
+            return SSI_SR_TFE_BITS  # Hardcoded that the transmit buffer is empty
+        else:
+            print(f"<< Read {num_bytes} bytes from XIP_SSI address [{address + self.base_address:#010x}]")
+            return 0
+
+
 class ByteArrayMemory(MemoryRegion):
 
     def __init__(self, base_address: int = SRAM_START, size: int = SRAM_SIZE, preinit: int = 0x00):
@@ -216,6 +243,7 @@ class Rp2040:
         self.mmu.register_region("cortex0", self.cortex_region)
         self.mmu.register_region("sio", Sio())
         self.mmu.register_region("uart0", Uart())
+        self.mmu.register_region("xip_ssi", XipSsi())
 
     def init_from_bootrom(self):
         self.sp = self.rom_region.read(0)
@@ -598,6 +626,15 @@ class Rp2040:
             address = self.registers[n] + imm
             print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
             self.mmu.write_uint32(address, self.registers[t])
+        # STR register
+        elif (opcode >> 9) == 0b0101000:
+            print("  STR (register) instruction...")
+            m = (opcode >> 6) & 0x7
+            n = (opcode >> 3) & 0x7
+            t = opcode & 0x7
+            address = self.registers[n] + self.registers[m]
+            print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
+            self.mmu.write_uint32(address, self.registers[t])
         # SUB (immediate) T2
         elif (opcode >> 11) == 0b00111:
             print("  SUB (immediate) T2 instruction...")
@@ -628,38 +665,3 @@ class Rp2040:
         else:
             print(" Instruction not implemented!!!!")
             raise NotImplementedError
-
-
-def main():  # pragma: no cover
-    import argparse
-    from functools import partial
-
-    parser = argparse.ArgumentParser(description='RPy2040 - a RP2040 emulator written in Python')
-
-    base16 = partial(int, base=16)
-
-    parser.add_argument('filename', type=str,
-                        help='The binary (.bin) file to execute in the emulator')
-    parser.add_argument('-e', '--entry_point', type=base16, nargs='?', const="0x10000000", default=None,
-                        help='The entry point for execution in hex format (eg. 0x10000354). Defaults to 0x10000000 if no bootrom is loaded.')  # noqa: E501
-    parser.add_argument('-b', '--bootrom', type=str,
-                        help='The binary (.bin) file that holds the bootrom code. Defaults to bootrom.bin')
-
-    args = parser.parse_args()
-
-    rp = Rp2040()
-    loadbin(args.filename, rp.flash)
-
-    if args.bootrom:
-        loadbin(args.bootrom, rp.rom)
-        rp.init_from_bootrom()
-
-    if args.entry_point:
-        rp.pc = args.entry_point
-
-    for _ in range(10):
-        rp.execute_instruction()
-
-
-if __name__ == "__main__":  # pragma: no cover
-    main()
