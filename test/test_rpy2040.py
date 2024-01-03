@@ -379,7 +379,7 @@ class TestInstructions:
         rp.registers[1] = 0x20000043
         rp.execute_instruction()
         assert rp.pc == 0x20000042
-        assert rp.lr == 0x10000377
+        assert rp.lr == 0x10000379
 
 
 class TestAddWithCarry:

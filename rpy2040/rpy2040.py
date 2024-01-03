@@ -5,7 +5,7 @@ Inspired by the rp2040js emulator by Uri Shaked (https://github.com/wokwi/rp2040
 '''
 import array
 import ctypes
-from typing import Optional, Iterable, Protocol
+from typing import Optional, Iterable, Protocol, Callable
 
 DEBUG_REGISTERS = True
 DEBUG_INSTRUCTIONS = True
@@ -22,7 +22,7 @@ SIO_START = 0xd0000000
 SIO_SIZE = 0x1000000
 
 # XIP SSI
-XIP_SSI_START = 0x18000000
+XIP_SSI_BASE = 0x18000000
 XIP_SSI_SIZE = 0x100
 # XIP SSI registers
 SSI_SR_OFFSET = 0x28
@@ -31,7 +31,15 @@ SSI_DR0_OFFSET = 0x60
 SSI_SR_TFE_BITS = 0x00000004
 SSI_SR_BUSY_BITS = 0x00000001
 
+# Resets
+RESETS_BASE = 0x4000c000
+RESETS_SIZE = 0xc
+# Resets registers
+RESETS_RESET_DONE = 0x8
+# Resets masks
+RESETS_RESET_BITS = 0x01ffffff
 
+# UART
 UART0_BASE = 0x40034000
 UART0_SIZE = 0x1000
 UARTDR = 0x00
@@ -178,7 +186,7 @@ class Sio(MemoryRegion):
 
 class XipSsi(MemoryRegion):
 
-    def __init__(self, base_address: int = XIP_SSI_START, size: int = XIP_SSI_SIZE):
+    def __init__(self, base_address: int = XIP_SSI_BASE, size: int = XIP_SSI_SIZE):
         self.base_address = base_address
         self.size = size
         self.dr0 = 0
@@ -197,6 +205,37 @@ class XipSsi(MemoryRegion):
             return self.dr0
         else:
             print(f"<< Read {num_bytes} bytes from XIP_SSI address [{address + self.base_address:#010x}]")
+            return 0
+
+
+ReadHookType = Callable[[], int]
+WriteHookType = Callable[[int], None]
+
+
+class Resets(MemoryRegion):
+
+    def __init__(self, base_address: int = RESETS_BASE, size: int = RESETS_SIZE):
+        self.base_address = base_address
+        self.size = size
+        self.name = "Resets"
+        self.writehooks: dict[int, WriteHookType] = {}
+        self.readhooks: dict[int, ReadHookType] = {}
+        self.readhooks[RESETS_RESET_DONE] = self.read_reset_done
+
+    def read_reset_done(self) -> int:
+        return RESETS_RESET_BITS
+
+    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
+        if address in self.writehooks:
+            self.writehooks[address](value)
+        else:
+            print(f">> Write of value [{value}/{value:#x}] to {self.name} address [{address + self.base_address:#010x}]")  # noqa: E501
+
+    def read(self, address: int, num_bytes: int = 4) -> int:
+        if address in self.readhooks:
+            return self.readhooks[address]()
+        else:
+            print(f"<< Read {num_bytes} bytes from {self.name} address [{address + self.base_address:#010x}]")
             return 0
 
 
@@ -241,17 +280,17 @@ class Rp2040:
         self.rom_region = ByteArrayMemory(ROM_START, ROM_SIZE)
         self.sram_region = ByteArrayMemory(SRAM_START, SRAM_SIZE)
         self.flash_region = ByteArrayMemory(FLASH_START, FLASH_SIZE, 0xFF)
-        self.cortex_region = CortexRegisters(CORTEX_REGISTER_BASE, CORTEX_REGISTER_SIZE)
         self.rom = self.rom_region.memory
         self.sram = self.sram_region.memory
         self.flash = self.flash_region.memory
         self.mmu.register_region("flash", self.flash_region)
         self.mmu.register_region("sram", self.sram_region)
         self.mmu.register_region("rom", self.rom_region)
-        self.mmu.register_region("cortex0", self.cortex_region)
+        self.mmu.register_region("cortex0", CortexRegisters())
         self.mmu.register_region("sio", Sio())
         self.mmu.register_region("uart0", Uart())
         self.mmu.register_region("xip_ssi", XipSsi())
+        self.mmu.register_region("resets", Resets())
 
     def init_from_bootrom(self):
         self.sp = self.rom_region.read(0)
@@ -464,7 +503,7 @@ class Rp2040:
             m = (opcode >> 3) & 0xf
             address = self.registers[m] & 0xfffffffe
             print(f"    Branch to: {address:#010x}")
-            self.lr = (self.pc - 2) | 0x1
+            self.lr = self.pc | 0x1
             self.pc = address
         # BX
         elif (opcode >> 7) == 0b010001110:
