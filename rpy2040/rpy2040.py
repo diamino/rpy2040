@@ -5,7 +5,14 @@ Inspired by the rp2040js emulator by Uri Shaked (https://github.com/wokwi/rp2040
 '''
 import array
 import ctypes
-from typing import Optional, Iterable, Protocol, Callable
+from typing import Iterable
+from .peripherals.mpu import Mpu
+from .peripherals.memory import ByteArrayMemory
+from .peripherals.uart import Uart
+from .peripherals.xipssi import XipSsi
+from .peripherals.resets import Resets
+from .peripherals.sio import Sio
+from .peripherals.cortexreg import CortexRegisters
 
 DEBUG_REGISTERS = True
 DEBUG_INSTRUCTIONS = True
@@ -17,59 +24,9 @@ FLASH_SIZE = 16 * 1024 * 1024  # 16MB
 SRAM_START = 0x20000000
 SRAM_SIZE = 264 * 1024  # 264kB
 
-# SIO
-SIO_START = 0xd0000000
-SIO_SIZE = 0x1000000
-# SIO registers
-SIO_CPUID = 0x00
-SIO_GPIO_OUT_SET = 0x14
-SIO_GPIO_OUT_CLR = 0x18
-
-# XIP SSI
-XIP_SSI_BASE = 0x18000000
-XIP_SSI_SIZE = 0x100
-# XIP SSI registers
-SSI_SR_OFFSET = 0x28
-SSI_DR0_OFFSET = 0x60
-# XIP SSI masks
-SSI_SR_TFE_BITS = 0x00000004
-SSI_SR_BUSY_BITS = 0x00000001
-
-# Resets
-RESETS_BASE = 0x4000c000
-RESETS_SIZE = 0xc
-# Resets registers
-RESETS_RESET_DONE = 0x8
-# Resets masks
-RESETS_RESET_BITS = 0x01ffffff
-
-# UART
-UART0_BASE = 0x40034000
-UART0_SIZE = 0x1000
-# UART registers
-UARTDR = 0x00
-UARTFR = 0x18
-
-# Cortex register region
-CORTEX_REGISTER_BASE = 0xe0000000
-CORTEX_REGISTER_SIZE = 0xeda4
-# Cortex registers
-VTOR = 0xed08
-
+# Default values for SP and PC
 SP_START = 0x20041000
 PC_START = 0x10000000
-
-
-class MemoryRegion(Protocol):
-
-    base_address: int
-    size: int
-
-    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
-        ...
-
-    def read(self, address: int, num_bytes: int = 4) -> int:
-        ...
 
 
 def loadbin(filename: str, mem: bytearray, offset: int = 0) -> None:
@@ -95,180 +52,6 @@ def add_with_carry(x: int, y: int, carry_in: bool) -> tuple[int, bool, bool]:
     return (result, carry_out, overflow)
 
 
-def get_pinlist(mask: int) -> list[int]:
-    return [i for i in range(32) if mask & (1 << i)]
-
-
-def generate_mask(region: MemoryRegion) -> Optional[int]:
-    if region.size.bit_count() != 1:
-        return None
-    mask = ~(region.size - 1)
-    if region.base_address == region.base_address & mask:
-        return mask
-    else:
-        return None
-
-
-class Mmu:
-
-    def __init__(self):
-        self.regions = {}
-        self.masks = {}
-
-    def register_region(self, name: str, region: MemoryRegion) -> None:
-        self.regions[name] = region
-        self.masks[name] = generate_mask(region)
-
-    def find_region(self, address: int) -> Optional[MemoryRegion]:
-        for _, region in self.regions.items():
-            if (address >= region.base_address) and (address < (region.base_address + region.size)):
-                return region
-        print(f"MMU: No matching region found for address {address:#010x}!!!")
-        return None
-
-    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
-        region = self.find_region(address)
-        if region:
-            region.write(address - region.base_address, value, num_bytes)
-
-    def read(self, address: int, num_bytes: int = 4) -> int:
-        region = self.find_region(address)
-        if region:
-            return region.read(address - region.base_address, num_bytes)
-        return 0
-
-    def write_uint32(self, address: int, value: int) -> None:
-        self.write(address, value, 4)
-
-    def read_uint32(self, address: int) -> int:
-        return self.read(address, 4)
-
-    def read_uint16(self, address: int) -> int:
-        return self.read(address, 2)
-
-    def read_uint8(self, address: int) -> int:
-        return self.read(address, 1)
-
-
-class ByteArrayMemory(MemoryRegion):
-
-    def __init__(self, base_address: int = SRAM_START, size: int = SRAM_SIZE, preinit: int = 0x00):
-        self.base_address = base_address
-        self.size = size
-        self.memory = bytearray(size * [preinit])
-
-    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
-        self.memory[address:address+num_bytes] = value.to_bytes(num_bytes, byteorder='little')
-
-    def read(self, address: int, num_bytes: int = 4) -> int:
-        return int.from_bytes(self.memory[address:address+num_bytes], 'little')
-
-
-ReadHookType = Callable[[], int]
-WriteHookType = Callable[[int], None]
-
-
-class MemoryRegionMap(MemoryRegion):
-
-    def __init__(self, name: str, base_address: int, size: int):
-        self.base_address = base_address
-        self.size = size
-        self.name = name
-        self.writehooks: dict[int, WriteHookType] = {}
-        self.readhooks: dict[int, ReadHookType] = {}
-
-    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
-        if address in self.writehooks:
-            self.writehooks[address](value)
-        else:
-            print(f">> Write of value [{value}/{value:#x}] to {self.name} address [{address + self.base_address:#010x}]")  # noqa: E501
-            # raise MemoryError
-
-    def read(self, address: int, num_bytes: int = 4) -> int:
-        if address in self.readhooks:
-            return self.readhooks[address]()
-        else:
-            print(f"<< Read {num_bytes} bytes from {self.name} address [{address + self.base_address:#010x}]")
-            # return 0
-            raise MemoryError
-
-
-class XipSsi(MemoryRegionMap):
-
-    def __init__(self, base_address: int = XIP_SSI_BASE, size: int = XIP_SSI_SIZE):
-        super().__init__("XIP SSI", base_address, size)
-        self.dr0 = 0
-        self.writehooks[SSI_DR0_OFFSET] = self.write_dr0_offset
-        self.readhooks[SSI_DR0_OFFSET] = self.read_dr0_offset
-        self.readhooks[SSI_SR_OFFSET] = self.read_sr_offset
-
-    def write_dr0_offset(self, value: int) -> None:
-        if value == 0x05:  # CMD_READ_STATUS
-            self.dr0 = 0
-
-    def read_sr_offset(self) -> int:
-        return SSI_SR_TFE_BITS  # Hardcoded that the transmit buffer is empty
-
-    def read_dr0_offset(self) -> int:
-        return self.dr0
-
-
-class Resets(MemoryRegionMap):
-
-    def __init__(self, base_address: int = RESETS_BASE, size: int = RESETS_SIZE):
-        super().__init__("Resets", base_address, size)
-        self.readhooks[RESETS_RESET_DONE] = self.read_reset_done
-
-    def read_reset_done(self) -> int:
-        return RESETS_RESET_BITS
-
-
-class Sio(MemoryRegionMap):
-
-    def __init__(self, base_address: int = SIO_START, size: int = SIO_SIZE):
-        super().__init__("SIO", base_address, size)
-        self.cpuid = 0  # Hardcoded '0' as we currently only support one core
-        self.writehooks[SIO_GPIO_OUT_SET] = self.write_gpio_set
-        self.writehooks[SIO_GPIO_OUT_CLR] = self.write_gpio_clr
-        self.readhooks[SIO_CPUID] = self.read_cpuid
-
-    def write_gpio_set(self, value: int) -> None:
-        pinlist = get_pinlist(value)
-        print(f">> GPIO pins set to HIGH/set: {pinlist}")
-
-    def write_gpio_clr(self, value: int) -> None:
-        pinlist = get_pinlist(value)
-        print(f">> GPIO pins set to LOW/cleared: {pinlist}")
-
-    def read_cpuid(self) -> int:
-        return self.cpuid
-
-
-class CortexRegisters(MemoryRegionMap):
-
-    def __init__(self, base_address: int = CORTEX_REGISTER_BASE, size: int = CORTEX_REGISTER_SIZE):
-        super().__init__("Cortex registers", base_address, size)
-        self.readhooks[VTOR] = self.read_vtor
-
-    def read_vtor(self) -> int:
-        return 0
-
-
-class Uart(MemoryRegionMap):
-
-    def __init__(self, base_address: int = UART0_BASE, size: int = UART0_SIZE):
-        super().__init__("UART", base_address, size)
-        self.uartfr = 0
-        self.writehooks[UARTDR] = self.write_uartdr
-        self.readhooks[UARTFR] = self.read_uartfr
-
-    def write_uartdr(self, value: int) -> None:
-        print(f"UART: Write to data register [{value:#x}/'{chr(value)}']...")
-
-    def read_uartfr(self) -> int:
-        return self.uartfr
-
-
 class Rp2040:
 
     def __init__(self):
@@ -276,25 +59,25 @@ class Rp2040:
         self.apsr: int = 0
         self.pc = PC_START
         self.sp = SP_START
-        self.mmu = Mmu()
-        self.rom_region = ByteArrayMemory(ROM_START, ROM_SIZE)
-        self.sram_region = ByteArrayMemory(SRAM_START, SRAM_SIZE)
-        self.flash_region = ByteArrayMemory(FLASH_START, FLASH_SIZE, 0xFF)
-        self.rom = self.rom_region.memory
-        self.sram = self.sram_region.memory
-        self.flash = self.flash_region.memory
-        self.mmu.register_region("flash", self.flash_region)
-        self.mmu.register_region("sram", self.sram_region)
-        self.mmu.register_region("rom", self.rom_region)
-        self.mmu.register_region("cortex0", CortexRegisters())
-        self.mmu.register_region("sio", Sio())
-        self.mmu.register_region("uart0", Uart())
-        self.mmu.register_region("xip_ssi", XipSsi())
-        self.mmu.register_region("resets", Resets())
+        self.mpu = Mpu()
+        rom_region = ByteArrayMemory(ROM_START, ROM_SIZE)
+        sram_region = ByteArrayMemory(SRAM_START, SRAM_SIZE)
+        flash_region = ByteArrayMemory(FLASH_START, FLASH_SIZE, 0xFF)
+        self.rom = rom_region.memory
+        self.sram = sram_region.memory
+        self.flash = flash_region.memory
+        self.mpu.register_region("flash", flash_region)
+        self.mpu.register_region("sram", sram_region)
+        self.mpu.register_region("rom", rom_region)
+        self.mpu.register_region("cortex0", CortexRegisters())
+        self.mpu.register_region("sio", Sio())
+        self.mpu.register_region("uart0", Uart())
+        self.mpu.register_region("xip_ssi", XipSsi())
+        self.mpu.register_region("resets", Resets())
 
     def init_from_bootrom(self):
-        self.sp = self.rom_region.read(0)
-        self.pc = self.rom_region.read(4) & 0xfffffffe
+        self.sp = self.mpu.regions["rom"].read(0)
+        self.pc = self.mpu.regions["rom"].read(4) & 0xfffffffe
 
     @property
     def pc(self) -> int:
@@ -393,13 +176,13 @@ class Rp2040:
         if DEBUG_REGISTERS:
             print(f"\nPC: {self.pc:#010x}\tSP: {self.sp:#010x}\tAPSR: {self.apsr:#010x}")
         # TODO: Opcode loading can be sped up by referencing the XIP flash directly
-        opcode = self.mmu.read_uint16(self.pc)
+        opcode = self.mpu.read_uint16(self.pc)
         self.pc += 2
         opcode2 = 0
         if (opcode >> 11) == 0b11110:
             # instr_loc = self.pc - FLASH_START
             # opcode2 = int.from_bytes(self.flash[instr_loc:instr_loc+2], "little")
-            opcode2 = self.mmu.read_uint16(self.pc)
+            opcode2 = self.mpu.read_uint16(self.pc)
             self.pc += 2
 
         if DEBUG_REGISTERS:
@@ -542,7 +325,7 @@ class Rp2040:
             print(f"    Destination registers[{register_list:#b}]\tSource address [{address:#010x}]")
             for i in range(8):
                 if (register_list >> i) & 1:
-                    self.registers[i] = self.mmu.read_uint32(address)
+                    self.registers[i] = self.mpu.read_uint32(address)
                     address += 4
             if wback:
                 self.registers[n] += 4 * register_list.bit_count()
@@ -554,7 +337,7 @@ class Rp2040:
             imm = ((opcode >> 6) & 0x1F) << 2
             address = self.registers[n] + imm
             print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
-            self.registers[t] = self.mmu.read_uint32(address)
+            self.registers[t] = self.mpu.read_uint32(address)
         # LDR (literal)
         elif (opcode >> 11) == 0b01001:
             print("  LDR (literal) instruction...")
@@ -563,7 +346,7 @@ class Rp2040:
             base = (self.pc + 2) & 0xfffffffc
             address = base + imm
             print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
-            self.registers[t] = self.mmu.read_uint32(address)
+            self.registers[t] = self.mpu.read_uint32(address)
         # LDRB (immediate)
         elif (opcode >> 11) == 0b01111:
             print("  LDRB (immediate) instruction...")
@@ -572,7 +355,7 @@ class Rp2040:
             t = opcode & 0x7
             address = self.registers[n] + imm5
             print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
-            self.registers[t] = self.mmu.read_uint8(address)
+            self.registers[t] = self.mpu.read_uint8(address)
         # LDRSH (register)
         elif (opcode >> 9) == 0b0101111:
             print("  LDRSH (register) instruction...")
@@ -581,7 +364,7 @@ class Rp2040:
             t = opcode & 0x7
             address = self.registers[n] + self.registers[m]
             print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
-            self.registers[t] = self.mmu.read_uint16(address)
+            self.registers[t] = self.mpu.read_uint16(address)
         # LSLS (immediate)
         elif (opcode >> 11) == 0b00000:
             print("  LSLS (immediate) instruction...")
@@ -660,10 +443,10 @@ class Rp2040:
             address = self.sp
             for i in range(8):
                 if (register_list & (1 << i)):
-                    self.registers[i] = self.mmu.read_uint32(address)
+                    self.registers[i] = self.mpu.read_uint32(address)
                     address += 4
             if p:
-                self.pc = self.mmu.read_uint32(address) & 0xfffffffe
+                self.pc = self.mpu.read_uint32(address) & 0xfffffffe
             self.sp += 4 * register_list.bit_count()
         # PUSH
         elif (opcode >> 9) == 0b1011010:
@@ -672,10 +455,10 @@ class Rp2040:
             address = self.sp - 4 * bitcount
             for i in range(8):
                 if (opcode & (1 << i)):
-                    self.mmu.write_uint32(address, self.registers[i])
+                    self.mpu.write_uint32(address, self.registers[i])
                     address += 4
             if (opcode & (1 << 8)):  # 'M'-bit -> push LR register
-                self.mmu.write_uint32(address, self.registers[14])
+                self.mpu.write_uint32(address, self.registers[14])
             self.sp -= 4 * bitcount
         # RSB / NEG
         elif (opcode >> 6) == 0b0100001001:
@@ -698,7 +481,7 @@ class Rp2040:
             print(f"    Source registers[{register_list:#b}]\tDestination address [{address:#010x}]")
             for i in range(8):
                 if (register_list >> i) & 1:
-                    self.mmu.write_uint32(address, self.registers[i])
+                    self.mpu.write_uint32(address, self.registers[i])
                     address += 4
             self.registers[n] += 4 * register_list.bit_count()
         # STR immediate (T1)
@@ -709,7 +492,7 @@ class Rp2040:
             imm = ((opcode >> 6) & 0x1F) << 2
             address = self.registers[n] + imm
             print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
-            self.mmu.write_uint32(address, self.registers[t])
+            self.mpu.write_uint32(address, self.registers[t])
         # STR register
         elif (opcode >> 9) == 0b0101000:
             print("  STR (register) instruction...")
@@ -718,7 +501,7 @@ class Rp2040:
             t = opcode & 0x7
             address = self.registers[n] + self.registers[m]
             print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
-            self.mmu.write_uint32(address, self.registers[t])
+            self.mpu.write_uint32(address, self.registers[t])
         # SUB (immediate) T2
         elif (opcode >> 11) == 0b00111:
             print("  SUB (immediate) T2 instruction...")

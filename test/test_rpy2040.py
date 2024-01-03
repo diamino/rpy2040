@@ -164,7 +164,7 @@ class TestInstructions:
         rp.pc = 0x10000374
         rp.flash[0x374:0x376] = b'\x93\x69'  # ldr r3, [r2, #24]
         rp.registers[2] = 0x40034000
-        rp.mmu.regions['uart0'].uartfr = 0xcafebabe
+        rp.mpu.regions['uart0'].uartfr = 0xcafebabe
         rp.execute_instruction()
         assert rp.registers[3] == 0xcafebabe
 
