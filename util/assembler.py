@@ -116,6 +116,11 @@ def opcodeSUBT2(rdn: int, imm8: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeSUBSP(imm7: int) -> bytes:
+    opcode = (0b101100001 << 7) | (imm7 & 0x7f)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeUXTB(rd: int, rm: int) -> bytes:
     opcode = (0b1011001011 << 6) | ((rm & 0x7) << 3) | (rd & 0x7)
     return opcode.to_bytes(2, 'little')

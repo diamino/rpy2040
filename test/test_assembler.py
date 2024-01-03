@@ -51,5 +51,8 @@ class TestAssembler:
     def test_opcodeSUBT2(self):
         assert asm.opcodeSUBT2(asm.R1, 13) == b'\x0d\x39'
 
+    def test_opcodeSUBSP(self):
+        assert asm.opcodeSUBSP(2) == b'\x82\xb0'
+
     def test_opcodeUXTB(self):
         assert asm.opcodeUXTB(asm.R1, asm.R1) == b'\xc9\xb2'

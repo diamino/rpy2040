@@ -514,6 +514,13 @@ class Rp2040:
             self.apsr_z = bool(result == 0)
             self.apsr_c = c
             self.apsr_v = v
+        # SUB (SP minus immediate)
+        elif (opcode >> 7) == 0b101100001:
+            print("  SUB (SP minus immediate) instruction...")
+            imm32 = (opcode & 0x7F) << 2
+            print(f"    Subtract {imm32:#x} from SP...")
+            result, c, v = add_with_carry(self.sp, ~imm32, True)
+            self.sp = result
         # TST immediate (T1)
         elif (opcode >> 6) == 0b0100001000:
             print("  TST instruction...")

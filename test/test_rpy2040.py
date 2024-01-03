@@ -331,6 +331,14 @@ class TestInstructions:
         assert rp.apsr_n is True
         assert rp.apsr_v is False
 
+    def test_sub_sp(self):
+        rp = Rp2040()
+        opcode = asm.opcodeSUBSP(imm7=2)  # sub sp, #8
+        rp.flash[0:len(opcode)] = opcode
+        rp.sp = SP_START
+        rp.execute_instruction()
+        assert rp.sp == SP_START - 8
+
     def test_tst(self):
         rp = Rp2040()
         rp.flash[0:2] = b'\x19\x42'  # tst r1, r3
