@@ -10,16 +10,20 @@ from typing import Optional, Iterable, Protocol, Callable
 DEBUG_REGISTERS = True
 DEBUG_INSTRUCTIONS = True
 
-IGNORE_BL = False
-
 ROM_START = 0x00000000
 ROM_SIZE = 16 * 1024  # 16kB
 FLASH_START = 0x10000000
 FLASH_SIZE = 16 * 1024 * 1024  # 16MB
 SRAM_START = 0x20000000
 SRAM_SIZE = 264 * 1024  # 264kB
+
+# SIO
 SIO_START = 0xd0000000
 SIO_SIZE = 0x1000000
+# SIO registers
+SIO_CPUID = 0x00
+SIO_GPIO_OUT_SET = 0x14
+SIO_GPIO_OUT_CLR = 0x18
 
 # XIP SSI
 XIP_SSI_BASE = 0x18000000
@@ -42,11 +46,14 @@ RESETS_RESET_BITS = 0x01ffffff
 # UART
 UART0_BASE = 0x40034000
 UART0_SIZE = 0x1000
+# UART registers
 UARTDR = 0x00
 UARTFR = 0x18
 
+# Cortex register region
 CORTEX_REGISTER_BASE = 0xe0000000
 CORTEX_REGISTER_SIZE = 0xeda4
+# Cortex registers
 VTOR = 0xed08
 
 SP_START = 0x20041000
@@ -143,102 +150,6 @@ class Mmu:
         return self.read(address, 1)
 
 
-class Uart(MemoryRegion):
-
-    def __init__(self, base_address: int = UART0_BASE, size: int = UART0_SIZE):
-        self.base_address = base_address
-        self.size = size
-        self.uartfr = 0
-
-    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
-        if address == UARTDR:
-            print(f"UART: Write to data register [{value:#x}/'{chr(value)}']...")
-        else:
-            print(f"UART: Write of value {value:#x} to UART address {address:#x}...")
-
-    def read(self, address: int, num_bytes: int = 4) -> int:
-        if address == UARTFR:
-            return self.uartfr
-        else:
-            raise MemoryError
-
-
-class Sio(MemoryRegion):
-
-    def __init__(self, base_address: int = SIO_START, size: int = SIO_SIZE):
-        self.base_address = base_address
-        self.size = size
-
-    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
-        if address == 20:  # GPIO SET
-            pinlist = get_pinlist(value)
-            print(f">> GPIO pins set to HIGH/set: {pinlist}")
-        elif address == 24:  # GPIO CLR
-            pinlist = get_pinlist(value)
-            print(f">> GPIO pins set to LOW/cleared: {pinlist}")
-        else:
-            print(f">> Write of value [{value}/{value:#x}] to SIO address [{address + self.base_address:#010x}]")
-
-    def read(self, address: int, num_bytes: int = 4) -> int:
-        print(f"<< Read {num_bytes} bytes from SIO address [{address + self.base_address:#010x}]")
-        return 0
-
-
-class XipSsi(MemoryRegion):
-
-    def __init__(self, base_address: int = XIP_SSI_BASE, size: int = XIP_SSI_SIZE):
-        self.base_address = base_address
-        self.size = size
-        self.dr0 = 0
-
-    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
-        if address == SSI_DR0_OFFSET:
-            if value == 0x05:  # CMD_READ_STATUS
-                self.dr0 = 0
-        else:
-            print(f">> Write of value [{value}/{value:#x}] to XIP_SSI address [{address + self.base_address:#010x}]")
-
-    def read(self, address: int, num_bytes: int = 4) -> int:
-        if address == SSI_SR_OFFSET:
-            return SSI_SR_TFE_BITS  # Hardcoded that the transmit buffer is empty
-        elif address == SSI_DR0_OFFSET:
-            return self.dr0
-        else:
-            print(f"<< Read {num_bytes} bytes from XIP_SSI address [{address + self.base_address:#010x}]")
-            return 0
-
-
-ReadHookType = Callable[[], int]
-WriteHookType = Callable[[int], None]
-
-
-class Resets(MemoryRegion):
-
-    def __init__(self, base_address: int = RESETS_BASE, size: int = RESETS_SIZE):
-        self.base_address = base_address
-        self.size = size
-        self.name = "Resets"
-        self.writehooks: dict[int, WriteHookType] = {}
-        self.readhooks: dict[int, ReadHookType] = {}
-        self.readhooks[RESETS_RESET_DONE] = self.read_reset_done
-
-    def read_reset_done(self) -> int:
-        return RESETS_RESET_BITS
-
-    def write(self, address: int, value: int, num_bytes: int = 4) -> None:
-        if address in self.writehooks:
-            self.writehooks[address](value)
-        else:
-            print(f">> Write of value [{value}/{value:#x}] to {self.name} address [{address + self.base_address:#010x}]")  # noqa: E501
-
-    def read(self, address: int, num_bytes: int = 4) -> int:
-        if address in self.readhooks:
-            return self.readhooks[address]()
-        else:
-            print(f"<< Read {num_bytes} bytes from {self.name} address [{address + self.base_address:#010x}]")
-            return 0
-
-
 class ByteArrayMemory(MemoryRegion):
 
     def __init__(self, base_address: int = SRAM_START, size: int = SRAM_SIZE, preinit: int = 0x00):
@@ -253,20 +164,109 @@ class ByteArrayMemory(MemoryRegion):
         return int.from_bytes(self.memory[address:address+num_bytes], 'little')
 
 
-class CortexRegisters(MemoryRegion):
+ReadHookType = Callable[[], int]
+WriteHookType = Callable[[int], None]
 
-    def __init__(self, base_address: int = CORTEX_REGISTER_BASE, size: int = CORTEX_REGISTER_SIZE):
+
+class MemoryRegionMap(MemoryRegion):
+
+    def __init__(self, name: str, base_address: int, size: int):
         self.base_address = base_address
         self.size = size
+        self.name = name
+        self.writehooks: dict[int, WriteHookType] = {}
+        self.readhooks: dict[int, ReadHookType] = {}
 
     def write(self, address: int, value: int, num_bytes: int = 4) -> None:
-        pass
+        if address in self.writehooks:
+            self.writehooks[address](value)
+        else:
+            print(f">> Write of value [{value}/{value:#x}] to {self.name} address [{address + self.base_address:#010x}]")  # noqa: E501
+            # raise MemoryError
 
     def read(self, address: int, num_bytes: int = 4) -> int:
-        if address == VTOR:
-            return 0
-        print(f"Read from unimplemented Cortex register [{address:#x}]!!!")
+        if address in self.readhooks:
+            return self.readhooks[address]()
+        else:
+            print(f"<< Read {num_bytes} bytes from {self.name} address [{address + self.base_address:#010x}]")
+            # return 0
+            raise MemoryError
+
+
+class XipSsi(MemoryRegionMap):
+
+    def __init__(self, base_address: int = XIP_SSI_BASE, size: int = XIP_SSI_SIZE):
+        super().__init__("XIP SSI", base_address, size)
+        self.dr0 = 0
+        self.writehooks[SSI_DR0_OFFSET] = self.write_dr0_offset
+        self.readhooks[SSI_DR0_OFFSET] = self.read_dr0_offset
+        self.readhooks[SSI_SR_OFFSET] = self.read_sr_offset
+
+    def write_dr0_offset(self, value: int) -> None:
+        if value == 0x05:  # CMD_READ_STATUS
+            self.dr0 = 0
+
+    def read_sr_offset(self) -> int:
+        return SSI_SR_TFE_BITS  # Hardcoded that the transmit buffer is empty
+
+    def read_dr0_offset(self) -> int:
+        return self.dr0
+
+
+class Resets(MemoryRegionMap):
+
+    def __init__(self, base_address: int = RESETS_BASE, size: int = RESETS_SIZE):
+        super().__init__("Resets", base_address, size)
+        self.readhooks[RESETS_RESET_DONE] = self.read_reset_done
+
+    def read_reset_done(self) -> int:
+        return RESETS_RESET_BITS
+
+
+class Sio(MemoryRegionMap):
+
+    def __init__(self, base_address: int = SIO_START, size: int = SIO_SIZE):
+        super().__init__("SIO", base_address, size)
+        self.cpuid = 0  # Hardcoded '0' as we currently only support one core
+        self.writehooks[SIO_GPIO_OUT_SET] = self.write_gpio_set
+        self.writehooks[SIO_GPIO_OUT_CLR] = self.write_gpio_clr
+        self.readhooks[SIO_CPUID] = self.read_cpuid
+
+    def write_gpio_set(self, value: int) -> None:
+        pinlist = get_pinlist(value)
+        print(f">> GPIO pins set to HIGH/set: {pinlist}")
+
+    def write_gpio_clr(self, value: int) -> None:
+        pinlist = get_pinlist(value)
+        print(f">> GPIO pins set to LOW/cleared: {pinlist}")
+
+    def read_cpuid(self) -> int:
+        return self.cpuid
+
+
+class CortexRegisters(MemoryRegionMap):
+
+    def __init__(self, base_address: int = CORTEX_REGISTER_BASE, size: int = CORTEX_REGISTER_SIZE):
+        super().__init__("Cortex registers", base_address, size)
+        self.readhooks[VTOR] = self.read_vtor
+
+    def read_vtor(self) -> int:
         return 0
+
+
+class Uart(MemoryRegionMap):
+
+    def __init__(self, base_address: int = UART0_BASE, size: int = UART0_SIZE):
+        super().__init__("UART", base_address, size)
+        self.uartfr = 0
+        self.writehooks[UARTDR] = self.write_uartdr
+        self.readhooks[UARTFR] = self.read_uartfr
+
+    def write_uartdr(self, value: int) -> None:
+        print(f"UART: Write to data register [{value:#x}/'{chr(value)}']...")
+
+    def read_uartfr(self) -> int:
+        return self.uartfr
 
 
 class Rp2040:
@@ -492,11 +492,8 @@ class Rp2040:
             imm32 = sign_extend(imm23, 23)
             print(f"    {imm32=}")
             print(f"    Branch to: {(self.pc + imm32):#010x}")
-            if not IGNORE_BL:
-                self.lr = self.pc | 0x1
-                self.pc += imm32
-            else:
-                print("    Branch ignored!!!")
+            self.lr = self.pc | 0x1
+            self.pc += imm32
         # BLX
         elif (opcode >> 7) == 0b010001111:
             print("  BLX instruction...")
@@ -624,9 +621,9 @@ class Rp2040:
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
             self.apsr_c = bool((self.registers[m] >> (shift_n - 1)) & 1)
-        # MOVS
+        # MOV (immediate)
         elif (opcode >> 11) == 0b00100:
-            print("  MOVS instruction...")
+            print("  MOV (immediate) instruction...")
             d = (opcode >> 8) & 0x07
             value = opcode & 0xFF
             print(f"    Destination register is [{d}]\tValue is [{value}]")
