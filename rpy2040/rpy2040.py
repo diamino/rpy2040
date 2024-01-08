@@ -13,6 +13,8 @@ from .peripherals.xipssi import XipSsi
 from .peripherals.resets import Resets
 from .peripherals.sio import Sio
 from .peripherals.cortexreg import CortexRegisters
+from .peripherals.xosc import Xosc
+from .peripherals.clocks import Clocks
 
 DEBUG_REGISTERS = True
 DEBUG_INSTRUCTIONS = True
@@ -74,6 +76,8 @@ class Rp2040:
         self.mpu.register_region("uart0", Uart())
         self.mpu.register_region("xip_ssi", XipSsi())
         self.mpu.register_region("resets", Resets())
+        self.mpu.register_region("xosc", Xosc())
+        self.mpu.register_region("clocks", Clocks())
 
     def init_from_bootrom(self):
         self.sp = self.mpu.regions["rom"].read(0)
@@ -374,10 +378,11 @@ class Rp2040:
             print(f"    Source R[{m}]\tDestination R[{d}]\tShift amount [{shift_n}]")
             result = self.registers[m] << shift_n
             self.registers[d] = result & 0xFFFFFFFF
-            self.apsr_n = bool(result & (1 << 31))
-            self.apsr_z = bool(result == 0)
-            if shift_n > 0:
-                self.apsr_c = bool(result & (1 << 32))
+            if d != 15:  # This is actually MOV reg T2 encoding
+                self.apsr_n = bool(result & (1 << 31))
+                self.apsr_z = bool(result == 0)
+                if shift_n > 0:
+                    self.apsr_c = bool(result & (1 << 32))
         # LSLS (register)
         elif (opcode >> 6) == 0b0100000010:
             print("  LSLS (register) instruction...")
@@ -421,9 +426,9 @@ class Rp2040:
             print(f"    Source R[{m}]\tDestination R[{d}]")
             result = self.registers[m]
             self.registers[d] = result
-            if d != 15:
-                self.apsr_n = bool(result & (1 << 31))
-                self.apsr_z = bool(result == 0)
+            # if d != 15:
+            #     self.apsr_n = bool(result & (1 << 31))
+            #     self.apsr_z = bool(result == 0)
         # MSR
         elif ((opcode >> 5) == 0b11110011100) and ((opcode2 >> 14) == 0b10):
             print("  MSR instruction...")
@@ -435,6 +440,16 @@ class Rp2040:
             if sysm >> 3 == 1:  # SP
                 if sysm & 0x7 == 0:  # MSP = SP_main
                     self.sp = self.registers[n] & 0xfffffffc
+        # ORR
+        elif (opcode >> 6) == 0b0100001100:
+            print("  ORR instruction...")
+            m = ((opcode >> 3) & 0x7)
+            dn = opcode & 0x7
+            print(f"    ORR r{dn}, r{m}...")
+            result = self.registers[dn] | self.registers[m]
+            self.registers[dn] = result
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
         # POP
         elif (opcode >> 9) == 0b1011110:
             print("  POP instruction...")
@@ -486,11 +501,19 @@ class Rp2040:
             self.registers[n] += 4 * register_list.bit_count()
         # STR immediate (T1)
         elif (opcode >> 11) == 0b01100:
-            print("  STR (immediate) instruction...")
+            print("  STR (immediate) T1 instruction...")
             n = (opcode >> 3) & 0x7
             t = opcode & 0x7
             imm = ((opcode >> 6) & 0x1F) << 2
             address = self.registers[n] + imm
+            print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
+            self.mpu.write_uint32(address, self.registers[t])
+        # STR immediate (T2)
+        elif (opcode >> 11) == 0b10010:
+            print("  STR (immediate) T2 instruction...")
+            t = (opcode >> 8) & 0x7
+            imm32 = (opcode & 0xff) << 2
+            address = self.registers[13] + imm32
             print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
             self.mpu.write_uint32(address, self.registers[t])
         # STR register

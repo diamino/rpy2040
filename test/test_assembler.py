@@ -36,6 +36,9 @@ class TestAssembler:
     def test_opcodeNEG(self):
         assert asm.opcodeNEG(asm.R4, asm.R1) == b'\x4c\x42'
 
+    def test_opcodeORR(self):
+        assert asm.opcodeORR(asm.R3, asm.R0) == b'\x03\x43'
+
     def test_opcodePOP(self):
         assert asm.opcodePOP((asm.R0, asm.R1, asm.PC)) == b'\x03\xbd'
 
@@ -44,6 +47,9 @@ class TestAssembler:
 
     def test_opcodeSTM(self):
         assert asm.opcodeSTM(asm.R1, (asm.R0,)) == b'\x01\xc1'
+
+    def test_opcodeSTRimmT2(self):
+        assert asm.opcodeSTRimmT2(asm.R3, 0) == b'\x00\x93'
 
     def test_opcodeSTRreg(self):
         assert asm.opcodeSTRreg(asm.R1, asm.R3, asm.R2) == b'\x99\x50'

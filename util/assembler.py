@@ -84,6 +84,11 @@ def opcodeNEG(rd: int, rn: int) -> bytes:
     return opcodeRSB(rd, rn)
 
 
+def opcodeORR(rdn: int, rm: int) -> bytes:
+    opcode = (0b0100001100 << 6) | ((rm & 0x7) << 3) | (rdn & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodePOP(registers: tuple[int, ...]) -> bytes:
     register_list = 0
     for i in registers:
@@ -103,6 +108,11 @@ def opcodeSTM(rn: int, registers: tuple[int, ...]) -> bytes:
     for i in registers:
         register_list |= 1 << i
     opcode = (0b11000 << 11) | ((rn & 0x7) << 8) | (register_list & 0xff)
+    return opcode.to_bytes(2, 'little')
+
+
+def opcodeSTRimmT2(rt: int, imm8: int) -> bytes:
+    opcode = (0b10010 << 11) | ((rt & 0x7) << 8) | (imm8 & 0xff)
     return opcode.to_bytes(2, 'little')
 
 

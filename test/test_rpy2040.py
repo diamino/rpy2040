@@ -252,6 +252,19 @@ class TestInstructions:
         rp.execute_instruction()
         assert rp.sp == 0x20000618
 
+    def test_orr(self):
+        rp = Rp2040()
+        opcode = asm.opcodeORR(rdn=3, rm=0)  # orrs r3, r0
+        rp.flash[0:len(opcode)] = opcode
+        rp.registers[0] = 0x00000042
+        rp.registers[3] = 0x80042000
+        rp.execute_instruction()
+        assert rp.registers[3] == 0x80042042
+        assert rp.apsr_z is False
+        assert rp.apsr_c is False
+        assert rp.apsr_n is True
+        assert rp.apsr_v is False
+
     def test_pop(self):
         rp = Rp2040()
         opcode = asm.opcodePOP(registers=(asm.R0, asm.R1, asm.PC))  # pop	{r0, r1, pc}
@@ -308,6 +321,15 @@ class TestInstructions:
         rp.registers[2] = SRAM_START
         rp.execute_instruction()
         assert rp.sram[40:44] == b'\xfe\xca\x00\x00'
+
+    def test_str_immediate_t2(self):
+        rp = Rp2040()
+        opcode = asm.opcodeSTRimmT2(rt=asm.R3, imm8=2)  # str r3, [sp, #8]
+        rp.flash[0:2] = opcode
+        rp.sp = SP_START
+        rp.registers[3] = 0xcafef00d
+        rp.execute_instruction()
+        assert rp.sram[SP_START-SRAM_START+8:SP_START-SRAM_START+12] == b'\x0d\xf0\xfe\xca'
 
     def test_str_register(self):
         rp = Rp2040()
