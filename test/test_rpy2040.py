@@ -168,6 +168,15 @@ class TestInstructions:
         rp.execute_instruction()
         assert rp.registers[3] == 0xcafebabe
 
+    def test_ldr_immediate_t2(self):
+        rp = Rp2040()
+        opcode = asm.opcodeLDRimmT2(rt=3, imm8=6)  # ldr r3, [sp, #24]
+        rp.flash[0:2] = opcode
+        rp.sp = SP_START
+        rp.sram[SP_START-SRAM_START+24:SP_START-SRAM_START+28] = b'\x0d\xf0\xfe\xca'
+        rp.execute_instruction()
+        assert rp.registers[3] == 0xcafef00d
+
     def test_ldr_literal(self):
         rp = Rp2040()
         rp.flash[0:2] = b'\x09\x4a'  # ldr	r2, [pc, #36]

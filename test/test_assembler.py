@@ -24,6 +24,9 @@ class TestAssembler:
     def test_opcodeLDM(self):
         assert asm.opcodeLDM(asm.R0, (asm.R1, asm.R2)) == b'\x06\xc8'
 
+    def test_opcodeLDRimmT2(self):
+        assert asm.opcodeLDRimmT2(asm.R3, 6) == b'\x06\x9b'
+
     def test_opcodeLDRBimm(self):
         assert asm.opcodeLDRBimm(asm.R1, asm.R0, 0) == b'\x01\x78'
 

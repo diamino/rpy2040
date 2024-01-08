@@ -65,6 +65,11 @@ def opcodeLDM(rn: int, registers: tuple[int, ...]) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeLDRimmT2(rt: int, imm8: int) -> bytes:
+    opcode = (0b10011 << 11) | ((rt & 0x7) << 8) | (imm8 & 0xff)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeLDRBimm(rt: int, rn: int, imm5: int) -> bytes:
     opcode = (0b01111 << 11) | ((imm5 & 0x1f) << 6) | ((rn & 0x7) << 3) | (rt & 0x7)
     return opcode.to_bytes(2, 'little')

@@ -342,6 +342,14 @@ class Rp2040:
             address = self.registers[n] + imm
             print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
             self.registers[t] = self.mpu.read_uint32(address)
+        # LDR immediate (T2)
+        elif (opcode >> 11) == 0b10011:
+            print("  LDR (immediate) T2 instruction...")
+            t = (opcode >> 8) & 0x7
+            imm32 = (opcode & 0xff) << 2
+            address = self.registers[13] + imm32
+            print(f"    Source address [{address:#010x}]\tDestination R[{t}]")
+            self.registers[t] = self.mpu.read_uint32(address)
         # LDR (literal)
         elif (opcode >> 11) == 0b01001:
             print("  LDR (literal) instruction...")
