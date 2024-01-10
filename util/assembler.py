@@ -47,8 +47,18 @@ def opcodeADDimmT2(rdn: int, imm8: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeADDSPimmT2(imm7: int) -> bytes:
+    opcode = (0b101100000 << 7) | (imm7 & 0x7f)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeADR(rd: int, imm8: int) -> bytes:
     opcode = (0b10100 << 11) | ((rd & 0x7) << 8) | (imm8 & 0xff)
+    return opcode.to_bytes(2, 'little')
+
+
+def opcodeAND(rdn: int, rm: int) -> bytes:
+    opcode = (0b0100000000 << 6) | ((rm & 0x7) << 3) | (rdn & 0x7)
     return opcode.to_bytes(2, 'little')
 
 

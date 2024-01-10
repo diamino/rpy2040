@@ -15,8 +15,14 @@ class TestAssembler:
     def test_opcodeADDimmT2(self):
         assert asm.opcodeADDimmT2(asm.R1, 1) == b'\x01\x31'
 
+    def test_opcodeADDSPimmT2(self):
+        assert asm.opcodeADDSPimmT2(3) == b'\x03\xb0'
+
     def test_opcodeADR(self):
         assert asm.opcodeADR(asm.R4, 13) == b'\x0d\xa4'
+
+    def test_opcodeAND(self):
+        assert asm.opcodeAND(asm.R3, asm.R2) == b'\x13\x40'
 
     def test_opcodeBIC(self):
         assert asm.opcodeBIC(asm.R0, asm.R1) == b'\x88\x43'

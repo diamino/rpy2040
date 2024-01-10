@@ -15,6 +15,7 @@ from .peripherals.sio import Sio
 from .peripherals.cortexreg import CortexRegisters
 from .peripherals.xosc import Xosc
 from .peripherals.clocks import Clocks
+from .peripherals.pll import Pll, PLL_USB_BASE
 
 DEBUG_REGISTERS = True
 DEBUG_INSTRUCTIONS = True
@@ -78,6 +79,8 @@ class Rp2040:
         self.mpu.register_region("resets", Resets())
         self.mpu.register_region("xosc", Xosc())
         self.mpu.register_region("clocks", Clocks())
+        self.mpu.register_region("pll_sys", Pll())
+        self.mpu.register_region("pll_usb", Pll(base_address=PLL_USB_BASE))
 
     def init_from_bootrom(self):
         self.sp = self.mpu.regions["rom"].read(0)
@@ -255,6 +258,13 @@ class Rp2040:
             # TODO: special case for SP register (13)
             print(f"    Source R[{m}]\tDestination R[{dn}]")
             self.registers[dn] = self.registers[m] + self.registers[dn]
+        # ADD (SP plus immediate) T2
+        elif (opcode >> 7) == 0b101100000:
+            print("  ADD (SP plus immediate) T2 instruction...")
+            imm32 = (opcode & 0x7F) << 2
+            print(f"    Add {imm32:#x} to SP...")
+            result, c, v = add_with_carry(self.sp, imm32, False)
+            self.sp = result
         # ADR
         elif (opcode >> 11) == 0b10100:
             print("  ADR instruction...")
@@ -262,6 +272,16 @@ class Rp2040:
             imm32 = (opcode & 0xff) << 2
             print(f"    Value [{imm32}]+PC \tDestination R[{d}]")
             self.registers[d] = (self.pc & 0xfffffffc) + imm32
+        # AND
+        elif (opcode >> 6) == 0b0100000000:
+            print("  AND instruction...")
+            m = ((opcode >> 3) & 0x7)
+            dn = opcode & 0x7
+            print(f"    AND r{dn}, r{m}...")
+            result = self.registers[dn] & self.registers[m]
+            self.registers[dn] = result
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
         # B T1
         elif (opcode >> 12) == 0b1101:
             print("  B T1 instruction...")

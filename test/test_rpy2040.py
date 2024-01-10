@@ -91,6 +91,14 @@ class TestInstructions:
         rp.execute_instruction()
         assert rp.registers[3] == 0x42 + 0x69
 
+    def test_add_sp_immediate_t2(self):
+        rp = Rp2040()
+        opcode = asm.opcodeADDSPimmT2(imm7=3)  # add sp, #12
+        rp.flash[0:len(opcode)] = opcode
+        rp.sp = SP_START
+        rp.execute_instruction()
+        assert rp.sp == SP_START + 12
+
     def test_adr(self):
         rp = Rp2040()
         rp.pc = 0x10000200
@@ -98,6 +106,19 @@ class TestInstructions:
         rp.flash[0x200:0x200+len(opcode)] = opcode  # add	r4, pc, #52
         rp.execute_instruction()
         assert rp.registers[4] == 0x10000234
+
+    def test_and(self):
+        rp = Rp2040()
+        opcode = asm.opcodeAND(rdn=asm.R3, rm=asm.R1)  # ands r3, r1
+        rp.flash[0:len(opcode)] = opcode
+        rp.registers[1] = 0x80000062
+        rp.registers[3] = 0x80042040
+        rp.execute_instruction()
+        assert rp.registers[3] == 0x80000040
+        assert rp.apsr_z is False
+        assert rp.apsr_c is False
+        assert rp.apsr_n is True
+        assert rp.apsr_v is False
 
     def test_b_t2(self):
         rp = Rp2040()
