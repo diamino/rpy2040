@@ -9,8 +9,11 @@ class TestAssembler:
     def test_opcodeADDregT1(self):
         assert asm.opcodeADDregT1(asm.R2, asm.R4, asm.R3) == b'\xe2\x18'
 
-    def test_opcodeADDT2(self):
-        assert asm.opcodeADDT2(asm.R1, 1) == b'\x01\x31'
+    def test_opcodeADDimmT1(self):
+        assert asm.opcodeADDimmT1(asm.R3, asm.R4, 4) == b'\x23\x1d'
+
+    def test_opcodeADDimmT2(self):
+        assert asm.opcodeADDimmT2(asm.R1, 1) == b'\x01\x31'
 
     def test_opcodeADR(self):
         assert asm.opcodeADR(asm.R4, 13) == b'\x0d\xa4'

@@ -20,9 +20,21 @@ class TestInstructions:
         assert rp.apsr_n is False
         assert rp.apsr_v is False
 
-    def test_add_t2(self):
+    def test_add_immediate_t1(self):
         rp = Rp2040()
-        opcode = asm.opcodeADDT2(rdn=1, imm8=1)
+        opcode = asm.opcodeADDimmT1(rd=asm.R3, rn=asm.R4, imm3=4)  # adds r3, r4, #4
+        rp.flash[0:2] = opcode
+        rp.registers[4] = 0x69
+        rp.execute_instruction()
+        assert rp.registers[3] == 0x6d
+        assert rp.apsr_z is False
+        assert rp.apsr_c is False
+        assert rp.apsr_n is False
+        assert rp.apsr_v is False
+
+    def test_add_immediate_t2(self):
+        rp = Rp2040()
+        opcode = asm.opcodeADDimmT2(rdn=1, imm8=1)
         rp.flash[0:len(opcode)] = opcode  # adds r1, #1
         rp.registers[1] = 0xffffffff
         rp.execute_instruction()
