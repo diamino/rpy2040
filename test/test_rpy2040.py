@@ -32,6 +32,45 @@ class TestInstructions:
         assert rp.apsr_n is False
         assert rp.apsr_v is False
 
+    def test_add_register_t1(self):
+        rp = Rp2040()
+        opcode = asm.opcodeADDregT1(rd=asm.R2, rn=asm.R4, rm=asm.R3)  # adds r2, r4, r3
+        rp.flash[0:2] = opcode
+        rp.registers[3] = 0x42
+        rp.registers[4] = 0x69
+        rp.execute_instruction()
+        assert rp.registers[2] == 0x42 + 0x69
+        assert rp.apsr_z is False
+        assert rp.apsr_c is False
+        assert rp.apsr_n is False
+        assert rp.apsr_v is False
+
+    def test_add_register_t1_negative(self):
+        rp = Rp2040()
+        opcode = asm.opcodeADDregT1(rd=asm.R2, rn=asm.R4, rm=asm.R3)  # adds r2, r4, r3
+        rp.flash[0:2] = opcode
+        rp.registers[3] = 0xf0000000
+        rp.registers[4] = 0x69
+        rp.execute_instruction()
+        assert rp.registers[2] == 0xf0000069
+        assert rp.apsr_z is False
+        assert rp.apsr_c is False
+        assert rp.apsr_n is True
+        assert rp.apsr_v is False
+
+    def test_add_register_t1_carry(self):
+        rp = Rp2040()
+        opcode = asm.opcodeADDregT1(rd=asm.R2, rn=asm.R4, rm=asm.R3)  # adds r2, r4, r3
+        rp.flash[0:2] = opcode
+        rp.registers[3] = 0xf0000000
+        rp.registers[4] = 0x10000000
+        rp.execute_instruction()
+        assert rp.registers[2] == 0x0
+        assert rp.apsr_z is True
+        assert rp.apsr_c is True
+        assert rp.apsr_n is False
+        assert rp.apsr_v is False
+
     def test_add_register_t2(self):
         rp = Rp2040()
         rp.flash[0:2] = b'\x63\x44'  # add	r3, ip

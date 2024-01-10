@@ -6,6 +6,9 @@ class TestAssembler:
     def test_opcodeADC(self):
         assert asm.opcodeADC(asm.R1, asm.R4) == b'\x61\x41'
 
+    def test_opcodeADDregT1(self):
+        assert asm.opcodeADDregT1(asm.R2, asm.R4, asm.R3) == b'\xe2\x18'
+
     def test_opcodeADDT2(self):
         assert asm.opcodeADDT2(asm.R1, 1) == b'\x01\x31'
 

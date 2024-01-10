@@ -220,6 +220,20 @@ class Rp2040:
             self.apsr_z = bool(result == 0)
             self.apsr_c = c
             self.apsr_v = v
+        # ADD (register) T1
+        elif (opcode >> 9) == 0b0001100:
+            print("  ADD (register) T1 instruction...")
+            m = ((opcode >> 6) & 0x7)
+            n = ((opcode >> 3) & 0x7)
+            d = opcode & 0x7
+            print(f"    Add R[{n}] to R[{m}]\tDestination: R[{d}] ...")
+            result, c, v = add_with_carry(self.registers[n], self.registers[m], False)
+            self.registers[d] = result
+            if d != 15:
+                self.apsr_n = bool(result & (1 << 31))
+                self.apsr_z = bool(result == 0)
+                self.apsr_c = c
+                self.apsr_v = v
         # ADD (register) T2
         elif (opcode >> 8) == 0b01000100:
             print("  ADD (register) T2 instruction...")

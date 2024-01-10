@@ -32,6 +32,11 @@ def opcodeADC(rdn: int, rm: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeADDregT1(rd: int, rn: int, rm: int) -> bytes:
+    opcode = (0b0001100 << 9) | ((rm & 0x7) << 6) | ((rn & 0x7) << 3) | (rd & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeADDT2(rdn: int, imm8: int) -> bytes:
     opcode = (0b00110 << 11) | ((rdn & 0x7) << 8) | (imm8 & 0xff)
     return opcode.to_bytes(2, 'little')
