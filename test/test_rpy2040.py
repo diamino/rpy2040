@@ -8,8 +8,8 @@ class TestInstructions:
 
     def test_adc(self):
         rp = Rp2040()
-        opcode = asm.opcodeADC(rdn=1, rm=4)
-        rp.flash[0:len(opcode)] = opcode  # adcs r1, r4
+        opcode = asm.opcodeADC(rdn=1, rm=4)  # adcs r1, r4
+        rp.flash[0:len(opcode)] = opcode
         rp.apsr_c = True
         rp.registers[1] = 0xfffffff0
         rp.registers[4] = 0x0000000f
@@ -34,8 +34,8 @@ class TestInstructions:
 
     def test_add_immediate_t2(self):
         rp = Rp2040()
-        opcode = asm.opcodeADDimmT2(rdn=1, imm8=1)
-        rp.flash[0:len(opcode)] = opcode  # adds r1, #1
+        opcode = asm.opcodeADDimmT2(rdn=1, imm8=1)  # adds r1, #1
+        rp.flash[0:len(opcode)] = opcode
         rp.registers[1] = 0xffffffff
         rp.execute_instruction()
         assert rp.registers[1] == 0
@@ -85,7 +85,8 @@ class TestInstructions:
 
     def test_add_register_t2(self):
         rp = Rp2040()
-        rp.flash[0:2] = b'\x63\x44'  # add	r3, ip
+        opcode = asm.opcodeADDregT2(rdn=asm.R3, rm=asm.R12)  # add	r3, ip
+        rp.flash[0:2] = opcode
         rp.registers[3] = 0x42
         rp.registers[12] = 0x69
         rp.execute_instruction()
@@ -102,8 +103,8 @@ class TestInstructions:
     def test_adr(self):
         rp = Rp2040()
         rp.pc = 0x10000200
-        opcode = asm.opcodeADR(rd=asm.R4, imm8=13)
-        rp.flash[0x200:0x200+len(opcode)] = opcode  # add	r4, pc, #52
+        opcode = asm.opcodeADR(rd=asm.R4, imm8=13)  # add	r4, pc, #52
+        rp.flash[0x200:0x200+len(opcode)] = opcode
         rp.execute_instruction()
         assert rp.registers[4] == 0x10000234
 
@@ -123,7 +124,8 @@ class TestInstructions:
     def test_b_t2(self):
         rp = Rp2040()
         rp.pc = 0x10000376
-        rp.flash[0x376:0x378] = b'\xf6\xe7'  # b.n	10000366
+        opcode = asm.opcodeBT2(imm11=-10)  # b.n	10000366
+        rp.flash[0x376:0x378] = opcode
         rp.execute_instruction()
         assert rp.pc == 0x10000366
 
@@ -158,7 +160,8 @@ class TestInstructions:
     def test_bl(self):
         rp = Rp2040()
         rp.pc = 0x10000360
-        rp.flash[0x360:0x364] = b'\x00\xf0\x0a\xf8'  # bl	10000378
+        opcode = asm.opcodeBL(imm32=20)  # bl	10000378
+        rp.flash[0x360:0x364] = opcode
         rp.execute_instruction()
         assert rp.pc == 0x10000378
         assert rp.lr == 0x10000365
@@ -176,7 +179,8 @@ class TestInstructions:
     def test_bne_not_equal(self):
         rp = Rp2040()
         rp.pc = 0x10000378
-        rp.flash[0x378:0x37a] = b'\xfc\xd1'  # bne.n	10000374
+        opcode = asm.opcodeBT1(cond=asm.NE, imm8=-4)  # bne.n	10000374
+        rp.flash[0x378:0x37a] = opcode
         rp.apsr_z = False
         rp.execute_instruction()
         assert rp.pc == 0x10000374
@@ -201,7 +205,8 @@ class TestInstructions:
 
     def test_cmp_immediate(self):
         rp = Rp2040()
-        rp.flash[0:2] = b'\x42\x2d'  # cmp	r5, #66	@ 0x42
+        opcode = asm.opcodeCMPimm(rn=asm.R5, imm8=66)  # cmp	r5, #66	@ 0x42
+        rp.flash[0:2] = opcode
         rp.registers[5] = 0x42
         rp.execute_instruction()
         assert rp.apsr_z is True
@@ -211,7 +216,8 @@ class TestInstructions:
 
     def test_cmp_register(self):
         rp = Rp2040()
-        rp.flash[0:2] = b'\xa5\x42'  # cmp	r5, r4
+        opcode = asm.opcodeCMPregT1(rn=asm.R5, rm=asm.R4)  # cmp	r5, r4
+        rp.flash[0:2] = opcode
         rp.registers[4] = 0
         rp.registers[5] = 0x80000000
         rp.execute_instruction()
@@ -220,10 +226,23 @@ class TestInstructions:
         assert rp.apsr_n is True
         assert rp.apsr_v is True
 
+    def test_eor(self):
+        rp = Rp2040()
+        opcode = asm.opcodeEOR(rdn=asm.R3, rm=asm.R4)  # eors r3, r4
+        rp.flash[0:len(opcode)] = opcode
+        rp.registers[3] = 0x00300742
+        rp.registers[4] = 0x80142700
+        rp.execute_instruction()
+        assert rp.registers[3] == 0x80242042
+        assert rp.apsr_z is False
+        assert rp.apsr_c is False
+        assert rp.apsr_n is True
+        assert rp.apsr_v is False
+
     def test_ldm(self):
         rp = Rp2040()
-        opcode = asm.opcodeLDM(rn=0, registers=(1, 2))
-        rp.flash[0:len(opcode)] = opcode  # ldmia	r0!, {r1, r2}
+        opcode = asm.opcodeLDM(rn=0, registers=(1, 2))  # ldmia	r0!, {r1, r2}
+        rp.flash[0:len(opcode)] = opcode
         rp.registers[0] = 0x20000618
         rp.sram[0x618:0x618+8] = b'\xbe\xba\xfe\xca\x45\x44\x43\x42'
         rp.execute_instruction()
@@ -231,10 +250,11 @@ class TestInstructions:
         assert rp.registers[2] == 0x42434445
         assert rp.registers[0] == 0x20000618 + 8
 
-    def test_ldr_immediate(self):
+    def test_ldr_immediate_t1(self):
         rp = Rp2040()
         rp.pc = 0x10000374
-        rp.flash[0x374:0x376] = b'\x93\x69'  # ldr r3, [r2, #24]
+        opcode = asm.opcodeLDRimmT1(rt=asm.R3, rn=asm.R2, imm5=6)  # ldr r3, [r2, #24]
+        rp.flash[0x374:0x376] = opcode
         rp.registers[2] = 0x40034000
         rp.mpu.regions['uart0'].uartfr = 0xcafebabe
         rp.execute_instruction()
@@ -251,15 +271,16 @@ class TestInstructions:
 
     def test_ldr_literal(self):
         rp = Rp2040()
-        rp.flash[0:2] = b'\x09\x4a'  # ldr	r2, [pc, #36]
+        opcode = asm.opcodeLDRlit(rt=asm.R2, imm8=9)  # ldr	r2, [pc, #36]
+        rp.flash[0:2] = opcode
         rp.flash[40:44] = (0x4001c004).to_bytes(4, 'little')
         rp.execute_instruction()
         assert rp.registers[2] == 0x4001c004
 
     def test_ldrb_immediate(self):
         rp = Rp2040()
-        opcode = asm.opcodeLDRBimm(1, 0, 0)
-        rp.flash[0:len(opcode)] = opcode  # ldrb r1, [r0, #0]
+        opcode = asm.opcodeLDRBimm(1, 0, 0)  # ldrb r1, [r0, #0]
+        rp.flash[0:len(opcode)] = opcode
         rp.sram[0x618:0x61A] = b'\xfe\xca'
         rp.registers[0] = 0x20000619
         rp.execute_instruction()

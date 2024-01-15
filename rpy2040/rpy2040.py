@@ -366,6 +366,16 @@ class Rp2040:
             self.apsr_z = bool(result == 0)
             self.apsr_c = c
             self.apsr_v = v
+        # EOR
+        elif (opcode >> 6) == 0b0100000001:
+            print("  EOR instruction...")
+            m = ((opcode >> 3) & 0x7)
+            dn = opcode & 0x7
+            print(f"    EOR r{dn}, r{m}...")
+            result = self.registers[dn] ^ self.registers[m]
+            self.registers[dn] = result
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
         # LDM
         elif (opcode >> 11) == 0b11001:
             print("  LDM instruction...")

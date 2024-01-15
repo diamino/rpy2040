@@ -6,14 +6,17 @@ class TestAssembler:
     def test_opcodeADC(self):
         assert asm.opcodeADC(asm.R1, asm.R4) == b'\x61\x41'
 
-    def test_opcodeADDregT1(self):
-        assert asm.opcodeADDregT1(asm.R2, asm.R4, asm.R3) == b'\xe2\x18'
-
     def test_opcodeADDimmT1(self):
         assert asm.opcodeADDimmT1(asm.R3, asm.R4, 4) == b'\x23\x1d'
 
     def test_opcodeADDimmT2(self):
         assert asm.opcodeADDimmT2(asm.R1, 1) == b'\x01\x31'
+
+    def test_opcodeADDregT1(self):
+        assert asm.opcodeADDregT1(asm.R2, asm.R4, asm.R3) == b'\xe2\x18'
+
+    def test_opcodeADDregT2(self):
+        assert asm.opcodeADDregT2(asm.R3, asm.R12) == b'\x63\x44'
 
     def test_opcodeADDSPimmT2(self):
         assert asm.opcodeADDSPimmT2(3) == b'\x03\xb0'
@@ -24,8 +27,17 @@ class TestAssembler:
     def test_opcodeAND(self):
         assert asm.opcodeAND(asm.R3, asm.R2) == b'\x13\x40'
 
+    def test_opcodeBT1(self):
+        assert asm.opcodeBT1(cond=asm.NE, imm8=-4) == b'\xfc\xd1'
+
+    def test_opcodeBT2(self):
+        assert asm.opcodeBT2(imm11=-10) == b'\xf6\xe7'
+
     def test_opcodeBIC(self):
         assert asm.opcodeBIC(asm.R0, asm.R1) == b'\x88\x43'
+
+    def test_opcodeBL(self):
+        assert asm.opcodeBL(20) == b'\x00\xf0\x0a\xf8'
 
     def test_opcodeBLX(self):
         assert asm.opcodeBLX(asm.R1) == b'\x88\x47'
@@ -33,11 +45,26 @@ class TestAssembler:
     def test_opcodeBX(self):
         assert asm.opcodeBX(asm.R2) == b'\x10\x47'
 
+    def test_opcodeCMPimm(self):
+        assert asm.opcodeCMPimm(asm.R5, 66) == b'\x42\x2d'
+
+    def test_opcodeCMPregT1(self):
+        assert asm.opcodeCMPregT1(asm.R5, asm.R4) == b'\xa5\x42'
+
+    def test_opcodeEOR(self):
+        assert asm.opcodeEOR(asm.R1, asm.R2) == b'\x51\x40'
+
     def test_opcodeLDM(self):
         assert asm.opcodeLDM(asm.R0, (asm.R1, asm.R2)) == b'\x06\xc8'
 
+    def test_opcodeLDRimmT1(self):
+        assert asm.opcodeLDRimmT1(asm.R3, asm.R2, 6) == b'\x93\x69'
+
     def test_opcodeLDRimmT2(self):
         assert asm.opcodeLDRimmT2(asm.R3, 6) == b'\x06\x9b'
+
+    def test_opcodeLDRlit(self):
+        assert asm.opcodeLDRlit(asm.R2, 9) == b'\x09\x4a'
 
     def test_opcodeLDRBimm(self):
         assert asm.opcodeLDRBimm(asm.R1, asm.R0, 0) == b'\x01\x78'
