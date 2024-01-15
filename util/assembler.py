@@ -145,7 +145,7 @@ def opcodeLDM(rn: int, registers: tuple[int, ...]) -> bytes:
 
 
 def opcodeLDRimmT1(rt: int, rn: int, imm5: int) -> bytes:
-    opcode = (0b01101 << 11) | ((imm5 & 0x1f) << 6) | ((rn & 0x7) << 3) | (rt & 0x7) 
+    opcode = (0b01101 << 11) | ((imm5 & 0x1f) << 6) | ((rn & 0x7) << 3) | (rt & 0x7)
     return opcode.to_bytes(2, 'little')
 
 
@@ -172,6 +172,11 @@ def opcodeLSRimm(rd: int, rm: int, imm5: int) -> bytes:
 def opcodeMSR(spec_reg: int, rn: int) -> bytes:
     opcode = (0b10001000 << 24) | ((spec_reg & 0xff) << 16) | (0b111100111000 << 4) | (rn & 0xf)
     return opcode.to_bytes(4, 'little')
+
+
+def opcodeMVN(rd: int, rm: int) -> bytes:
+    opcode = (0b0100001111 << 6) | ((rm & 0x7) << 3) | (rd & 0x7)
+    return opcode.to_bytes(2, 'little')
 
 
 def opcodeNEG(rd: int, rn: int) -> bytes:

@@ -354,6 +354,18 @@ class TestInstructions:
         rp.execute_instruction()
         assert rp.sp == 0x20000618
 
+    def test_mvn(self):
+        rp = Rp2040()
+        opcode = asm.opcodeMVN(rd=asm.R3, rm=asm.R1)  # mvns r3, r1
+        rp.flash[0:len(opcode)] = opcode
+        rp.registers[1] = 0x5690fc3a
+        rp.execute_instruction()
+        assert rp.registers[3] == 0xa96f03c5
+        assert rp.apsr_z is False
+        assert rp.apsr_c is False
+        assert rp.apsr_n is True
+        assert rp.apsr_v is False
+
     def test_orr(self):
         rp = Rp2040()
         opcode = asm.opcodeORR(rdn=3, rm=0)  # orrs r3, r0

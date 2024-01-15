@@ -505,6 +505,16 @@ class Rp2040:
             if sysm >> 3 == 1:  # SP
                 if sysm & 0x7 == 0:  # MSP = SP_main
                     self.sp = self.registers[n] & 0xfffffffc
+        # MVN
+        elif (opcode >> 6) == 0b0100001111:
+            print("  MVN instruction...")
+            m = ((opcode >> 3) & 0x7)
+            d = opcode & 0x7
+            print(f"    Bitwise NOT on R[{m}] and store in R[{d}]...")
+            result = ~self.registers[m] & 0xffffffff
+            self.registers[d] = result
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
         # ORR
         elif (opcode >> 6) == 0b0100001100:
             print("  ORR instruction...")

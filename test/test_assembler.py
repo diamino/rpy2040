@@ -75,6 +75,9 @@ class TestAssembler:
     def test_opcodeMSR(self):
         assert asm.opcodeMSR(asm.SYSM_MSP, asm.R1) == b'\x81\xf3\x08\x88'
 
+    def test_opcodeMVN(self):
+        assert asm.opcodeMVN(asm.R3, asm.R3) == b'\xdb\x43'
+
     def test_opcodeNEG(self):
         assert asm.opcodeNEG(asm.R4, asm.R1) == b'\x4c\x42'
 
