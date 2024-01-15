@@ -3,6 +3,10 @@ MPU implementation of the RPy2040 project
 '''
 from typing import Protocol, Optional, Callable
 
+ATOMIC_XOR = 1
+ATOMIC_SET = 2
+ATOMIC_CLEAR = 3
+
 
 class MemoryRegion(Protocol):
 
@@ -32,14 +36,24 @@ WriteHookType = Callable[[int], None]
 
 class MemoryRegionMap:
 
-    def __init__(self, name: str, base_address: int, size: int):
+    def __init__(self, name: str, base_address: int, size: int, atomic_writes: bool = False):
         self.base_address = base_address
         self.size = size
         self.name = name
+        self.atomic_writes = atomic_writes
         self.writehooks: dict[int, WriteHookType] = {}
         self.readhooks: dict[int, ReadHookType] = {}
 
     def write(self, address: int, value: int, num_bytes: int = 4) -> None:
+        if self.atomic_writes:
+            atomic_type = (address >> 12) & 3
+            address &= ~(3 << 12)
+            if atomic_type == ATOMIC_XOR:
+                value ^= self.read(address, num_bytes)
+            elif atomic_type == ATOMIC_SET:
+                value |= self.read(address, num_bytes)
+            elif atomic_type == ATOMIC_CLEAR:
+                value = self.read(address, num_bytes) & ~value
         if address in self.writehooks:
             self.writehooks[address](value)
         else:
