@@ -469,14 +469,27 @@ class TestInstructions:
 
     def test_sub_t2(self):
         rp = Rp2040()
-        opcode = asm.opcodeSUBT2(rdn=5, imm8=42)
-        rp.flash[0:len(opcode)] = opcode  # subs r5, #42
+        opcode = asm.opcodeSUBT2(rdn=asm.R5, imm8=42)   # subs r5, #42
+        rp.flash[0:len(opcode)] = opcode
         rp.registers[5] = 12
         rp.execute_instruction()
         assert rp.registers[5] == 0xffffffe2
         assert rp.apsr_z is False
         assert rp.apsr_c is False
         assert rp.apsr_n is True
+        assert rp.apsr_v is False
+
+    def test_sub_register(self):
+        rp = Rp2040()
+        opcode = asm.opcodeSUBreg(rd=asm.R1, rn=asm.R6, rm=asm.R4)   # subs r1, r6, r4
+        rp.flash[0:len(opcode)] = opcode
+        rp.registers[6] = 468012
+        rp.registers[4] = 329677
+        rp.execute_instruction()
+        assert rp.registers[1] == 138335
+        assert rp.apsr_z is False
+        assert rp.apsr_c is True
+        assert rp.apsr_n is False
         assert rp.apsr_v is False
 
     def test_sub_sp(self):

@@ -613,6 +613,20 @@ class Rp2040:
             self.apsr_z = bool(result == 0)
             self.apsr_c = c
             self.apsr_v = v
+        # SUB (register) T1
+        elif (opcode >> 9) == 0b0001101:
+            print("  SUB (register) T1 instruction...")
+            m = ((opcode >> 6) & 0x7)
+            n = ((opcode >> 3) & 0x7)
+            d = opcode & 0x7
+            print(f"    Add R[{n}] to R[{m}]\tDestination: R[{d}] ...")
+            result, c, v = add_with_carry(self.registers[n], ~self.registers[m], True)
+            self.registers[d] = result
+            if d != 15:
+                self.apsr_n = bool(result & (1 << 31))
+                self.apsr_z = bool(result == 0)
+                self.apsr_c = c
+                self.apsr_v = v
         # SUB (SP minus immediate)
         elif (opcode >> 7) == 0b101100001:
             print("  SUB (SP minus immediate) instruction...")

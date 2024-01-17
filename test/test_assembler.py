@@ -102,6 +102,9 @@ class TestAssembler:
     def test_opcodeSUBT2(self):
         assert asm.opcodeSUBT2(asm.R1, 13) == b'\x0d\x39'
 
+    def test_opcodeSUBreg(self):
+        assert asm.opcodeSUBreg(asm.R6, asm.R6, asm.R5) == b'\x76\x1b'
+
     def test_opcodeSUBSP(self):
         assert asm.opcodeSUBSP(2) == b'\x82\xb0'
 
