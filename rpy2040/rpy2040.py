@@ -174,6 +174,7 @@ class Rp2040:
             result = (self.apsr_n == self.apsr_v) and not self.apsr_z
         else:  # AL
             result = True
+
         if (cond & 1) and cond != 0b1111:
             return not result
         else:
@@ -358,8 +359,8 @@ class Rp2040:
         # CMP (register) T1
         elif (opcode >> 6) == 0b0100001010:
             print("  CMP (register) T1 instruction...")
-            n = ((opcode >> 3) & 0x7)
-            m = opcode & 0x7
+            m = ((opcode >> 3) & 0x7)
+            n = opcode & 0x7
             print(f"    Compare R[{n}] with R[{m}]...")
             result, c, v = add_with_carry(self.registers[n], ~self.registers[m], True)
             self.apsr_n = bool(result & (1 << 31))

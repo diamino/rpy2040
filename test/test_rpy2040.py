@@ -222,9 +222,21 @@ class TestInstructions:
         rp.registers[5] = 0x80000000
         rp.execute_instruction()
         assert rp.apsr_z is False
-        assert rp.apsr_c is False
+        assert rp.apsr_c is True
         assert rp.apsr_n is True
-        assert rp.apsr_v is True
+        assert rp.apsr_v is False
+
+    def test_cmp_register_zero(self):
+        rp = Rp2040()
+        opcode = asm.opcodeCMPregT1(rn=asm.R2, rm=asm.R3)  # cmp	r2, r3
+        rp.flash[0:2] = opcode
+        rp.registers[2] = 0x80000000
+        rp.registers[3] = 0x80000000
+        rp.execute_instruction()
+        assert rp.apsr_z is True
+        assert rp.apsr_c is True
+        assert rp.apsr_n is False
+        assert rp.apsr_v is False
 
     def test_eor(self):
         rp = Rp2040()
