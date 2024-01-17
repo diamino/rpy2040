@@ -164,6 +164,11 @@ def opcodeLDRBimm(rt: int, rn: int, imm5: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeLDRHimm(rt: int, rn: int, imm5: int) -> bytes:
+    opcode = (0b10001 << 11) | ((imm5 & 0x1f) << 6) | ((rn & 0x7) << 3) | (rt & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeLSRimm(rd: int, rm: int, imm5: int) -> bytes:
     opcode = (0b00001 << 11) | ((imm5 & 0x1f) << 6) | ((rm & 0x7) << 3) | (rd & 0x7)
     return opcode.to_bytes(2, 'little')

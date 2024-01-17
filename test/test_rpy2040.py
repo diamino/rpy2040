@@ -298,6 +298,15 @@ class TestInstructions:
         rp.execute_instruction()
         assert rp.registers[1] == 0x000000ca
 
+    def test_ldrh_immediate(self):
+        rp = Rp2040()
+        opcode = asm.opcodeLDRHimm(asm.R1, asm.R2, 0)  # ldrh r1, [r2, #0]
+        rp.flash[0:len(opcode)] = opcode
+        rp.sram[0x618:0x61C] = b'\xfe\xca\x0d\xf0'
+        rp.registers[2] = 0x2000061a
+        rp.execute_instruction()
+        assert rp.registers[1] == 0x0000f00d
+
     def test_ldrsh(self):
         rp = Rp2040()
         rp.flash[0:2] = b'\x5d\x5f'  # ldrsh	r5, [r3, r5]

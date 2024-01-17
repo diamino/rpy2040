@@ -69,6 +69,9 @@ class TestAssembler:
     def test_opcodeLDRBimm(self):
         assert asm.opcodeLDRBimm(asm.R1, asm.R0, 0) == b'\x01\x78'
 
+    def test_opcodeLDRHimm(self):
+        assert asm.opcodeLDRHimm(asm.R0, asm.R3, 0) == b'\x18\x88'
+
     def test_opcodeLSRimm(self):
         assert asm.opcodeLSRimm(asm.R1, asm.R1, 1) == b'\x49\x08'
 
