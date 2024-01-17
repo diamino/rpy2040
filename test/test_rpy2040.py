@@ -310,10 +310,10 @@ class TestInstructions:
 
     def test_ldrh_immediate(self):
         rp = Rp2040()
-        opcode = asm.opcodeLDRHimm(asm.R1, asm.R2, 0)  # ldrh r1, [r2, #0]
+        opcode = asm.opcodeLDRHimm(rt=asm.R1, rn=asm.R2, imm5=1)  # ldrh r1, [r2, #2]
         rp.flash[0:len(opcode)] = opcode
         rp.sram[0x618:0x61C] = b'\xfe\xca\x0d\xf0'
-        rp.registers[2] = 0x2000061a
+        rp.registers[2] = 0x20000618
         rp.execute_instruction()
         assert rp.registers[1] == 0x0000f00d
 
@@ -513,6 +513,16 @@ class TestInstructions:
         rp.registers[3] = SRAM_START
         rp.execute_instruction()
         assert rp.sram[40:44] == b'\xfe\xca\x00\x00'
+
+    def test_strb_immediate(self):
+        rp = Rp2040()
+        opcode = asm.opcodeSTRBimm(rt=asm.R1, rn=asm.R3, imm5=29)  # strb r1, [r3, #29]
+        rp.flash[0:2] = opcode
+        rp.sram[28:32] = b'\x11\x22\x33\x44'
+        rp.registers[1] = 0xcafe
+        rp.registers[3] = SRAM_START
+        rp.execute_instruction()
+        assert rp.sram[28:32] == b'\x11\xfe\x33\x44'
 
     def test_strb_register(self):
         rp = Rp2040()

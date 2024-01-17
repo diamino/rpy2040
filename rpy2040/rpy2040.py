@@ -441,7 +441,7 @@ class Rp2040:
             imm5 = (opcode >> 6) & 0x1F
             n = (opcode >> 3) & 0x7
             t = opcode & 0x7
-            address = self.registers[n] + imm5
+            address = self.registers[n] + (imm5 << 1)
             print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
             self.registers[t] = self.mpu.read_uint16(address)
         # LDRSH (register)
@@ -631,6 +631,14 @@ class Rp2040:
             address = self.registers[n] + self.registers[m]
             print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
             self.mpu.write_uint32(address, self.registers[t])
+        # STRB immediate
+        elif (opcode >> 11) == 0b01110:
+            imm5 = (opcode >> 6) & 0x1f
+            n = (opcode >> 3) & 0x7
+            t = opcode & 0x7
+            address = self.registers[n] + imm5
+            print(f"    STRB r{t}, [r{n}, #{imm5}]")
+            self.mpu.write(address, self.registers[t] & 0xff, num_bytes=1)
         # STRB register
         elif (opcode >> 9) == 0b0101010:
             m = (opcode >> 6) & 0x7
