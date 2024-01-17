@@ -4,6 +4,7 @@ Simple assembler for ARM-v6 to generate opcodes
 Diamino 2023
 """
 
+# Registers
 R0 = 0
 R1 = 1
 R2 = 2
@@ -24,7 +25,9 @@ SP = R13
 LR = R14
 PC = R15
 
+# Special registers
 SYSM_MSP = 8
+SYSM_PRIMASK = 16
 
 # Conditions
 EQ = 0b0000
@@ -185,6 +188,11 @@ def opcodeLDRHimm(rt: int, rn: int, imm5: int) -> bytes:
 def opcodeLSRimm(rd: int, rm: int, imm5: int) -> bytes:
     opcode = (0b00001 << 11) | ((imm5 & 0x1f) << 6) | ((rm & 0x7) << 3) | (rd & 0x7)
     return opcode.to_bytes(2, 'little')
+
+
+def opcodeMRS(rd: int, spec_reg: int) -> bytes:
+    opcode = (0b1000 << 28) | ((rd & 0xf) << 24) | ((spec_reg & 0xff) << 16) | 0b1111001111101111
+    return opcode.to_bytes(4, 'little')
 
 
 def opcodeMSR(spec_reg: int, rn: int) -> bytes:

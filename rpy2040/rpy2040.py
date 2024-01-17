@@ -369,7 +369,7 @@ class Rp2040:
             self.apsr_v = v
         # DMB
         elif (opcode == 0b1111001110111111) and ((opcode2 >> 4) == 0b100011110101):
-            assert (opcode2 & 0xf) == 0b1111 
+            assert (opcode2 & 0xf) == 0b1111
             print("    DMB sy")
             pass
         # EOR
@@ -517,6 +517,14 @@ class Rp2040:
             # if d != 15:
             #     self.apsr_n = bool(result & (1 << 31))
             #     self.apsr_z = bool(result == 0)
+        # MRS
+        elif (opcode == 0b1111001111101111) and ((opcode2 >> 12) == 0b1000):
+            print("  MRS instruction...")
+            d = (opcode2 >> 8) & 0xf
+            sysm = opcode2 & 0xff
+            print(f"    Source SYSm[{sysm}]\tDestination R[{d}]")
+            # TODO: other registers like APSR, PRIMASK, etc
+            # TODO: privileged and unprivileged mode
         # MSR
         elif ((opcode >> 5) == 0b11110011100) and ((opcode2 >> 14) == 0b10):
             print("  MSR instruction...")
