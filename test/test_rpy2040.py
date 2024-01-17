@@ -203,6 +203,15 @@ class TestInstructions:
         rp.execute_instruction()
         assert rp.pc == 0x20000042
 
+    def test_dmb(self):
+        rp = Rp2040()
+        rp.pc = 0x10000376
+        opcode = asm.opcodeDMB(option=asm.DMB_SY)  # dmb sy
+        rp.flash[0x376:0x376 + len(opcode)] = opcode
+        rp.execute_instruction()
+        # Currently the DMB instruction is ignored
+        assert rp.pc == 0x1000037a
+
     def test_cmp_immediate(self):
         rp = Rp2040()
         opcode = asm.opcodeCMPimm(rn=asm.R5, imm8=66)  # cmp	r5, #66	@ 0x42

@@ -43,6 +43,9 @@ GT = 0b1100
 LE = 0b1101
 AL = 0b1110
 
+# DMB options
+DMB_SY = 0b1111
+
 
 def opcodeADC(rdn: int, rm: int) -> bytes:
     opcode = (0b0100000101 << 6) | ((rm & 0x7) << 3) | (rdn & 0x7)
@@ -129,6 +132,11 @@ def opcodeCMPimm(rn: int, imm8: int) -> bytes:
 def opcodeCMPregT1(rn: int, rm: int) -> bytes:
     opcode = (0b0100001010 << 6) | ((rm & 0x7) << 3) | (rn & 0x7)
     return opcode.to_bytes(2, 'little')
+
+
+def opcodeDMB(option: int = DMB_SY) -> bytes:
+    opcode = (0b100011110101 << 20) | ((option & 0xf) << 16) | 0b1111001110111111
+    return opcode.to_bytes(4, 'little')
 
 
 def opcodeEOR(rdn: int, rm: int) -> bytes:

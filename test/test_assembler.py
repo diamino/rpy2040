@@ -51,6 +51,9 @@ class TestAssembler:
     def test_opcodeCMPregT1(self):
         assert asm.opcodeCMPregT1(asm.R5, asm.R4) == b'\xa5\x42'
 
+    def test_opcodeDMB(self):
+        assert asm.opcodeDMB(asm.DMB_SY) == b'\xbf\xf3\x5f\x8f'
+
     def test_opcodeEOR(self):
         assert asm.opcodeEOR(asm.R1, asm.R2) == b'\x51\x40'
 

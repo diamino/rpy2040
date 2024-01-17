@@ -187,7 +187,7 @@ class Rp2040:
         opcode = self.mpu.read_uint16(self.pc)
         self.pc += 2
         opcode2 = 0
-        if (opcode >> 11) == 0b11110:
+        if (opcode >> 12) == 0b1111:
             # instr_loc = self.pc - FLASH_START
             # opcode2 = int.from_bytes(self.flash[instr_loc:instr_loc+2], "little")
             opcode2 = self.mpu.read_uint16(self.pc)
@@ -367,12 +367,16 @@ class Rp2040:
             self.apsr_z = bool(result == 0)
             self.apsr_c = c
             self.apsr_v = v
+        # DMB
+        elif (opcode == 0b1111001110111111) and ((opcode2 >> 4) == 0b100011110101):
+            assert (opcode2 & 0xf) == 0b1111 
+            print("    DMB sy")
+            pass
         # EOR
         elif (opcode >> 6) == 0b0100000001:
-            print("  EOR instruction...")
             m = ((opcode >> 3) & 0x7)
             dn = opcode & 0x7
-            print(f"    EOR r{dn}, r{m}...")
+            print(f"    EOR r{dn}, r{m}")
             result = self.registers[dn] ^ self.registers[m]
             self.registers[dn] = result
             self.apsr_n = bool(result & (1 << 31))
