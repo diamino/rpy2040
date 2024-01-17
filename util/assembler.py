@@ -220,6 +220,11 @@ def opcodeSTRreg(rt: int, rn: int, rm: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeSUBT1(rd: int, rn: int, imm3: int) -> bytes:
+    opcode = (0b0001111 << 9) | ((imm3 & 0x7) << 6) | ((rn & 0x7) << 3) | (rd & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeSUBT2(rdn: int, imm8: int) -> bytes:
     opcode = (0b00111 << 11) | ((rdn & 0x7) << 8) | (imm8 & 0xff)
     return opcode.to_bytes(2, 'little')

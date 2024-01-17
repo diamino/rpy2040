@@ -601,6 +601,19 @@ class Rp2040:
             address = self.registers[n] + self.registers[m]
             print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
             self.mpu.write_uint32(address, self.registers[t])
+        # SUB (immediate) T1
+        elif (opcode >> 9) == 0b0001111:
+            print("  SUB (immediate) T1 instruction...")
+            d = opcode & 0x7
+            n = (opcode >> 3) & 0x7
+            imm = (opcode >> 6) & 0x7
+            print(f"    SUBS r{d}, r{n}, #{imm}")
+            result, c, v = add_with_carry(self.registers[n], ~imm, True)
+            self.registers[d] = result
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
+            self.apsr_c = c
+            self.apsr_v = v
         # SUB (immediate) T2
         elif (opcode >> 11) == 0b00111:
             print("  SUB (immediate) T2 instruction...")

@@ -99,6 +99,9 @@ class TestAssembler:
     def test_opcodeSTRreg(self):
         assert asm.opcodeSTRreg(asm.R1, asm.R3, asm.R2) == b'\x99\x50'
 
+    def test_opcodeSUBT1(self):
+        assert asm.opcodeSUBT1(asm.R7, asm.R1, 0) == b'\x0f\x1e'
+
     def test_opcodeSUBT2(self):
         assert asm.opcodeSUBT2(asm.R1, 13) == b'\x0d\x39'
 

@@ -467,6 +467,18 @@ class TestInstructions:
         rp.execute_instruction()
         assert rp.sram[40:44] == b'\xfe\xca\x00\x00'
 
+    def test_sub_t1(self):
+        rp = Rp2040()
+        opcode = asm.opcodeSUBT1(rd=asm.R5, rn=asm.R1, imm3=2)   # subs r5, r1, #2
+        rp.flash[0:len(opcode)] = opcode
+        rp.registers[1] = 12
+        rp.execute_instruction()
+        assert rp.registers[5] == 10
+        assert rp.apsr_z is False
+        assert rp.apsr_c is True
+        assert rp.apsr_n is False
+        assert rp.apsr_v is False
+
     def test_sub_t2(self):
         rp = Rp2040()
         opcode = asm.opcodeSUBT2(rdn=asm.R5, imm8=42)   # subs r5, #42
