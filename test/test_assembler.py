@@ -108,6 +108,9 @@ class TestAssembler:
     def test_opcodeSTRreg(self):
         assert asm.opcodeSTRreg(asm.R1, asm.R3, asm.R2) == b'\x99\x50'
 
+    def test_opcodeSTRBimm(self):
+        assert asm.opcodeSTRBimm(asm.R3, asm.R0, 29) == b'\x43\x77'
+
     def test_opcodeSTRBreg(self):
         assert asm.opcodeSTRBreg(asm.R3, asm.R0, asm.R2) == b'\x83\x54'
 
