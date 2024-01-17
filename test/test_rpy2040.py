@@ -438,6 +438,34 @@ class TestInstructions:
         assert rp.apsr_n is True
         assert rp.apsr_v is False
 
+    def test_sbc_carry_false(self):
+        rp = Rp2040()
+        opcode = asm.opcodeSBC(rdn=asm.R2, rm=asm.R5)   # sbcs r2, r5
+        rp.flash[0:len(opcode)] = opcode
+        rp.apsr_c = False
+        rp.registers[2] = 468012
+        rp.registers[5] = 329677
+        rp.execute_instruction()
+        assert rp.registers[2] == 138334
+        assert rp.apsr_z is False
+        assert rp.apsr_c is True
+        assert rp.apsr_n is False
+        assert rp.apsr_v is False
+
+    def test_sbc_carry_true(self):
+        rp = Rp2040()
+        opcode = asm.opcodeSBC(rdn=asm.R1, rm=asm.R6)   # sbcs r1, r6
+        rp.flash[0:len(opcode)] = opcode
+        rp.apsr_c = True
+        rp.registers[1] = 468012
+        rp.registers[6] = 329677
+        rp.execute_instruction()
+        assert rp.registers[1] == 138335
+        assert rp.apsr_z is False
+        assert rp.apsr_c is True
+        assert rp.apsr_n is False
+        assert rp.apsr_v is False
+
     def test_stm(self):
         rp = Rp2040()
         opcode = asm.opcodeSTM(rn=asm.R1, registers=(asm.R0, asm.R2))  # stmia	r1!, {r0, r2}

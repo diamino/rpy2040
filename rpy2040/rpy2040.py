@@ -572,6 +572,18 @@ class Rp2040:
             self.apsr_z = bool(result == 0)
             self.apsr_c = c
             self.apsr_v = v
+        # SBC
+        elif (opcode >> 6) == 0b0100000110:
+            print("  SBC instruction...")
+            m = ((opcode >> 3) & 0x7)
+            dn = opcode & 0x7
+            print(f"    SBCS r{dn}, r{m}")
+            result, c, v = add_with_carry(self.registers[dn], ~self.registers[m], self.apsr_c)
+            self.registers[dn] = result
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
+            self.apsr_c = c
+            self.apsr_v = v
         # STM
         elif (opcode >> 11) == 0b11000:
             print("  STM instruction...")
