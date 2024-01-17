@@ -198,7 +198,7 @@ class Rp2040:
             print(self.str_registers(registers=range(4, 8)))
             print(self.str_registers(registers=range(8, 12)))
             print(self.str_registers(registers=range(12, 16)))
-            print(f"Current opcode is [{opcode:04x}]")
+            # print(f"Current opcode is [{opcode:04x}]")
         # ADC
         if (opcode >> 6) == 0b0100000101:
             print("  ADC instruction...")
@@ -426,6 +426,15 @@ class Rp2040:
             address = self.registers[n] + imm5
             print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
             self.registers[t] = self.mpu.read_uint8(address)
+        # LDRB (register)
+        elif (opcode >> 9) == 0b0101110:
+            print("  LDRB (register) instruction...")
+            m = (opcode >> 6) & 0x7
+            n = (opcode >> 3) & 0x7
+            t = opcode & 0x7
+            address = self.registers[n] + self.registers[m]
+            print(f"    LRDB r{t}, [r{n}, r{m}]")
+            self.registers[t] = self.mpu.read_uint8(address)
         # LDRH (immediate)
         elif (opcode >> 11) == 0b10001:
             print("  LDRH (immediate) instruction...")
@@ -622,9 +631,16 @@ class Rp2040:
             address = self.registers[n] + self.registers[m]
             print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
             self.mpu.write_uint32(address, self.registers[t])
+        # STRB register
+        elif (opcode >> 9) == 0b0101010:
+            m = (opcode >> 6) & 0x7
+            n = (opcode >> 3) & 0x7
+            t = opcode & 0x7
+            address = self.registers[n] + self.registers[m]
+            print(f"    STRB r{t}, [r{n}, r{m}]")
+            self.mpu.write(address, self.registers[t] & 0xff, num_bytes=1)
         # SUB (immediate) T1
         elif (opcode >> 9) == 0b0001111:
-            print("  SUB (immediate) T1 instruction...")
             d = opcode & 0x7
             n = (opcode >> 3) & 0x7
             imm = (opcode >> 6) & 0x7

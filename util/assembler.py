@@ -164,6 +164,11 @@ def opcodeLDRBimm(rt: int, rn: int, imm5: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeLDRBreg(rt: int, rn: int, rm: int) -> bytes:
+    opcode = (0b0101110 << 9) | ((rm & 0x7) << 6) | ((rn & 0x7) << 3) | (rt & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeLDRHimm(rt: int, rn: int, imm5: int) -> bytes:
     opcode = (0b10001 << 11) | ((imm5 & 0x1f) << 6) | ((rn & 0x7) << 3) | (rt & 0x7)
     return opcode.to_bytes(2, 'little')
@@ -227,6 +232,11 @@ def opcodeSTRimmT2(rt: int, imm8: int) -> bytes:
 
 def opcodeSTRreg(rt: int, rn: int, rm: int) -> bytes:
     opcode = (0b0101000 << 9) | ((rm & 0x7) << 6) | ((rn & 0x7) << 3) | (rt & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
+def opcodeSTRBreg(rt: int, rn: int, rm: int) -> bytes:
+    opcode = (0b0101010 << 9) | ((rm & 0x7) << 6) | ((rn & 0x7) << 3) | (rt & 0x7)
     return opcode.to_bytes(2, 'little')
 
 

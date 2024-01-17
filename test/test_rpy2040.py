@@ -291,10 +291,20 @@ class TestInstructions:
 
     def test_ldrb_immediate(self):
         rp = Rp2040()
-        opcode = asm.opcodeLDRBimm(1, 0, 0)  # ldrb r1, [r0, #0]
+        opcode = asm.opcodeLDRBimm(rt=asm.R1, rn=0, imm5=0)  # ldrb r1, [r0, #0]
         rp.flash[0:len(opcode)] = opcode
         rp.sram[0x618:0x61A] = b'\xfe\xca'
         rp.registers[0] = 0x20000619
+        rp.execute_instruction()
+        assert rp.registers[1] == 0x000000ca
+
+    def test_ldrb_register(self):
+        rp = Rp2040()
+        opcode = asm.opcodeLDRBreg(rt=asm.R1, rn=asm.R0, rm=asm.R4)  # ldrb r1, [r0, r4]
+        rp.flash[0:len(opcode)] = opcode
+        rp.sram[0x618:0x61A] = b'\xfe\xca'
+        rp.registers[0] = 0x20000600
+        rp.registers[4] = 0x19
         rp.execute_instruction()
         assert rp.registers[1] == 0x000000ca
 
@@ -503,6 +513,17 @@ class TestInstructions:
         rp.registers[3] = SRAM_START
         rp.execute_instruction()
         assert rp.sram[40:44] == b'\xfe\xca\x00\x00'
+
+    def test_strb_register(self):
+        rp = Rp2040()
+        opcode = asm.opcodeSTRBreg(rt=asm.R1, rn=asm.R3, rm=asm.R2)  # strb r1, [r3, r2]
+        rp.flash[0:2] = opcode
+        rp.sram[40:44] = b'\x11\x22\x33\x44'
+        rp.registers[1] = 0xcafe
+        rp.registers[2] = 0x29
+        rp.registers[3] = SRAM_START
+        rp.execute_instruction()
+        assert rp.sram[40:44] == b'\x11\xfe\x33\x44'
 
     def test_sub_t1(self):
         rp = Rp2040()
