@@ -60,6 +60,7 @@ class Rp2040:
     def __init__(self):
         self.registers = array.array('l', 16*[0])
         self.apsr: int = 0
+        self.primask_pm: bool = False
         self.pc = PC_START
         self.sp = SP_START
         self.mpu = Mpu()
@@ -367,6 +368,14 @@ class Rp2040:
             self.apsr_z = bool(result == 0)
             self.apsr_c = c
             self.apsr_v = v
+        # CPS
+        elif (opcode >> 5) == 0b10110110011:
+            print("  CPS instruction...")
+            im = ((opcode >> 4) & 0x1)
+            effect = 'ID' if im == 1 else 'IE'
+            print(f"    CPS{effect} i...")
+            # TODO: only execute when in privileged mode
+            self.primask_pm = bool(im)
         # DMB
         elif (opcode == 0b1111001110111111) and ((opcode2 >> 4) == 0b100011110101):
             assert (opcode2 & 0xf) == 0b1111
@@ -420,6 +429,15 @@ class Rp2040:
             base = (self.pc + 2) & 0xfffffffc
             address = base + imm
             print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
+            self.registers[t] = self.mpu.read_uint32(address)
+        # LDR (register)
+        elif (opcode >> 9) == 0b0101100:
+            print("  LDR (register) instruction...")
+            m = (opcode >> 6) & 0x7
+            n = (opcode >> 3) & 0x7
+            t = opcode & 0x7
+            address = self.registers[n] + self.registers[m]
+            print(f"    LDR r{t}, [r{n}, r{m}]")
             self.registers[t] = self.mpu.read_uint32(address)
         # LDRB (immediate)
         elif (opcode >> 11) == 0b01111:

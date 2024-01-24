@@ -49,6 +49,10 @@ AL = 0b1110
 # DMB options
 DMB_SY = 0b1111
 
+# CPS effects
+CPS_IE = 0
+CPS_ID = 1
+
 
 def opcodeADC(rdn: int, rm: int) -> bytes:
     opcode = (0b0100000101 << 6) | ((rm & 0x7) << 3) | (rdn & 0x7)
@@ -137,6 +141,11 @@ def opcodeCMPregT1(rn: int, rm: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeCPS(im: int) -> bytes:
+    opcode = (0b10110110011 << 5) | ((im & 0x1) << 4) | 0b0010
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeDMB(option: int = DMB_SY) -> bytes:
     opcode = (0b100011110101 << 20) | ((option & 0xf) << 16) | 0b1111001110111111
     return opcode.to_bytes(4, 'little')
@@ -167,6 +176,11 @@ def opcodeLDRimmT2(rt: int, imm8: int) -> bytes:
 
 def opcodeLDRlit(rt: int, imm8: int) -> bytes:
     opcode = (0b01001 << 11) | ((rt & 0x7) << 8) | (imm8 & 0xff)
+    return opcode.to_bytes(2, 'little')
+
+
+def opcodeLDRreg(rt: int, rn: int, rm: int) -> bytes:
+    opcode = (0b0101100 << 9) | ((rm & 0x7) << 6) | ((rn & 0x7) << 3) | (rt & 0x7)
     return opcode.to_bytes(2, 'little')
 
 

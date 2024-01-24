@@ -51,6 +51,9 @@ class TestAssembler:
     def test_opcodeCMPregT1(self):
         assert asm.opcodeCMPregT1(asm.R5, asm.R4) == b'\xa5\x42'
 
+    def test_opcodeCPS(self):
+        assert asm.opcodeCPS(asm.CPS_ID) == b'\x72\xb6'
+
     def test_opcodeDMB(self):
         assert asm.opcodeDMB(asm.DMB_SY) == b'\xbf\xf3\x5f\x8f'
 
@@ -68,6 +71,9 @@ class TestAssembler:
 
     def test_opcodeLDRlit(self):
         assert asm.opcodeLDRlit(asm.R2, 9) == b'\x09\x4a'
+
+    def test_opcodeLDRreg(self):
+        assert asm.opcodeLDRreg(asm.R0, asm.R0, asm.R3) == b'\xc0\x58'
 
     def test_opcodeLDRBimm(self):
         assert asm.opcodeLDRBimm(asm.R1, asm.R0, 0) == b'\x01\x78'

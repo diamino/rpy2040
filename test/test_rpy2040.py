@@ -203,6 +203,22 @@ class TestInstructions:
         rp.execute_instruction()
         assert rp.pc == 0x20000042
 
+    def test_cpsid(self):
+        rp = Rp2040()
+        opcode = asm.opcodeCPS(im=asm.CPS_ID)  # cpsid i
+        rp.flash[0:0 + len(opcode)] = opcode
+        rp.primask_pm = False
+        rp.execute_instruction()
+        assert rp.primask_pm is True
+
+    def test_cpsie(self):
+        rp = Rp2040()
+        opcode = asm.opcodeCPS(im=asm.CPS_IE)  # cpsid i
+        rp.flash[0:0 + len(opcode)] = opcode
+        rp.primask_pm = True
+        rp.execute_instruction()
+        assert rp.primask_pm is False
+
     def test_dmb(self):
         rp = Rp2040()
         rp.pc = 0x10000376
@@ -297,6 +313,16 @@ class TestInstructions:
         rp.flash[40:44] = (0x4001c004).to_bytes(4, 'little')
         rp.execute_instruction()
         assert rp.registers[2] == 0x4001c004
+
+    def test_ldr_register(self):
+        rp = Rp2040()
+        opcode = asm.opcodeLDRreg(rt=asm.R3, rn=asm.R2, rm=asm.R6)  # ldr r3, [r2, r6]
+        rp.flash[0:0 + len(opcode)] = opcode
+        rp.sram[140:144] = b'\x0d\xf0\xfe\xca'
+        rp.registers[2] = SRAM_START + 0x00000080
+        rp.registers[6] = 0x0000000c
+        rp.execute_instruction()
+        assert rp.registers[3] == 0xcafef00d
 
     def test_ldrb_immediate(self):
         rp = Rp2040()
