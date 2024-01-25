@@ -38,7 +38,7 @@ def loadbin(filename: str, mem: bytearray, offset: int = 0) -> None:
     mem[offset:len(b)+offset] = b
 
 
-def sign_extend(value, no_bits_in: int) -> int:
+def sign_extend(value: int, no_bits_in: int) -> int:
     sign = (value >> (no_bits_in - 1)) & 1
     sign_bits = ~(~0 << (32 - no_bits_in))
     return ctypes.c_int32(((sign_bits if sign else 0) << no_bits_in) | value).value
@@ -284,6 +284,22 @@ class Rp2040:
             self.registers[dn] = result
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
+        # ASR (immediate)
+        elif (opcode >> 11) == 0b00010:
+            print("  ASR (immediate) instruction...")
+            m = (opcode >> 3) & 0x07
+            d = opcode & 0x07
+            imm5 = (opcode >> 6) & 0x1F
+            shift_n = imm5 if imm5 != 0 else 32
+            print(f"    Source R[{m}]\tDestination R[{d}]\tShift amount [{shift_n}]")
+            if shift_n < 32:
+                result = sign_extend(self.registers[m] >> shift_n, 32 - shift_n)
+            else:
+                result = sign_extend(self.registers[m] >> 31, 1)
+            self.registers[d] = result & 0xFFFFFFFF
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
+            self.apsr_c = bool((self.registers[m] >> (shift_n - 1)) & 1)
         # B T1
         elif (opcode >> 12) == 0b1101:
             print("  B T1 instruction...")

@@ -94,6 +94,11 @@ def opcodeAND(rdn: int, rm: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeASRimm(rd: int, rm: int, imm5: int) -> bytes:
+    opcode = (0b00010 << 11) | ((imm5 & 0x1f) << 6) | ((rm & 0x7) << 3) | (rd & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeBT1(cond: int, imm8: int) -> bytes:
     opcode = (0b1101 << 12) | ((cond & 0xf) << 8) | (imm8 & 0xff)
     return opcode.to_bytes(2, 'little')

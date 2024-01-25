@@ -27,6 +27,9 @@ class TestAssembler:
     def test_opcodeAND(self):
         assert asm.opcodeAND(asm.R3, asm.R2) == b'\x13\x40'
 
+    def test_opcodeASRimm(self):
+        assert asm.opcodeASRimm(asm.R3, asm.R1, 2) == b'\x8b\x10'
+
     def test_opcodeBT1(self):
         assert asm.opcodeBT1(cond=asm.NE, imm8=-4) == b'\xfc\xd1'
 

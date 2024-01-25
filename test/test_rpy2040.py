@@ -121,6 +121,44 @@ class TestInstructions:
         assert rp.apsr_n is True
         assert rp.apsr_v is False
 
+    def test_asr_immediate_positive(self):
+        rp = Rp2040()
+        rp.registers[4] = 0x00000074
+        opcode = asm.opcodeASRimm(rd=1, rm=4, imm5=3)  # asrs r1, r4, #3
+        rp.flash[0:len(opcode)] = opcode
+        rp.apsr_n = True
+        rp.apsr_z = True
+        rp.execute_instruction()
+        assert rp.registers[1] == 0x0000000e
+        assert rp.apsr_n is False
+        assert rp.apsr_z is False
+        assert rp.apsr_c is True
+
+    def test_asr_immediate_negative(self):
+        rp = Rp2040()
+        rp.registers[4] = 0x80007400
+        opcode = asm.opcodeASRimm(rd=1, rm=4, imm5=7)  # asrs r1, r4, #3
+        rp.flash[0:len(opcode)] = opcode
+        rp.apsr_c = True
+        rp.apsr_z = True
+        rp.execute_instruction()
+        assert rp.registers[1] == 0xff0000e8
+        assert rp.apsr_n is True
+        assert rp.apsr_z is False
+        assert rp.apsr_c is False
+
+    def test_asr_immediate_negative_32bits(self):
+        rp = Rp2040()
+        rp.registers[4] = 0x80007400
+        opcode = asm.opcodeASRimm(rd=1, rm=4, imm5=0)  # asrs r1, r4, #32
+        rp.flash[0:len(opcode)] = opcode
+        rp.apsr_z = True
+        rp.execute_instruction()
+        assert rp.registers[1] == 0xffffffff
+        assert rp.apsr_n is True
+        assert rp.apsr_z is False
+        assert rp.apsr_c is True
+
     def test_b_t2(self):
         rp = Rp2040()
         rp.pc = 0x10000376
