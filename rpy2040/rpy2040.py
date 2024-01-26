@@ -693,6 +693,14 @@ class Rp2040:
             address = self.registers[n] + self.registers[m]
             print(f"    STRB r{t}, [r{n}, r{m}]")
             self.mpu.write(address, self.registers[t] & 0xff, num_bytes=1)
+        # STRH register
+        elif (opcode >> 9) == 0b0101001:
+            m = (opcode >> 6) & 0x7
+            n = (opcode >> 3) & 0x7
+            t = opcode & 0x7
+            address = self.registers[n] + self.registers[m]
+            print(f"    STRH r{t}, [r{n}, r{m}]")
+            self.mpu.write(address, self.registers[t] & 0xffff, num_bytes=2)
         # SUB (immediate) T1
         elif (opcode >> 9) == 0b0001111:
             d = opcode & 0x7

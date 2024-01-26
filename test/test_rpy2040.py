@@ -608,6 +608,17 @@ class TestInstructions:
         rp.execute_instruction()
         assert rp.sram[40:44] == b'\x11\xfe\x33\x44'
 
+    def test_strh_register(self):
+        rp = Rp2040()
+        opcode = asm.opcodeSTRHreg(rt=asm.R1, rn=asm.R3, rm=asm.R2)  # strh r1, [r3, r2]
+        rp.flash[0:2] = opcode
+        rp.sram[40:44] = b'\x11\x22\x33\x44'
+        rp.registers[1] = 0xf00dcafe
+        rp.registers[2] = 0x2a
+        rp.registers[3] = SRAM_START
+        rp.execute_instruction()
+        assert rp.sram[40:44] == b'\x11\x22\xfe\xca'
+
     def test_sub_t1(self):
         rp = Rp2040()
         opcode = asm.opcodeSUBT1(rd=asm.R5, rn=asm.R1, imm3=2)   # subs r5, r1, #2
