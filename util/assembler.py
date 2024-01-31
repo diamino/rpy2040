@@ -114,6 +114,11 @@ def opcodeBIC(rdn: int, rm: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeBKPT(imm8: int) -> bytes:
+    opcode = (0b10111110 << 8) | (imm8 & 0xff)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeBL(imm32: int) -> bytes:
     imm10 = (imm32 >> 12) & 0x3ff
     imm11 = (imm32 >> 1) & 0x7ff

@@ -195,6 +195,14 @@ class TestInstructions:
         assert rp.apsr_n is False
         assert rp.apsr_z is True
 
+    def test_bkpt(self):
+        rp = Rp2040()
+        opcode = asm.opcodeBKPT(imm8=20)  # bkpt 0x0014
+        rp.flash[0:0 + len(opcode)] = opcode
+        rp.execute_instruction()
+        assert rp.stopped is True
+        assert rp.stop_reason == 20
+
     def test_bl(self):
         rp = Rp2040()
         rp.pc = 0x10000360

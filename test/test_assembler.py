@@ -39,6 +39,9 @@ class TestAssembler:
     def test_opcodeBIC(self):
         assert asm.opcodeBIC(asm.R0, asm.R1) == b'\x88\x43'
 
+    def test_opcodeBKPT(self):
+        assert asm.opcodeBKPT(42) == b'\x2a\xbe'
+
     def test_opcodeBL(self):
         assert asm.opcodeBL(20) == b'\x00\xf0\x0a\xf8'
 
