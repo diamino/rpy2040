@@ -2,6 +2,10 @@
 RPy2040 GDB server
 '''
 import socket
+import select
+import queue
+import threading
+from functools import partial
 from typing import Optional
 import binascii
 from rpy2040.rpy2040 import Rp2040, loadbin
@@ -11,7 +15,19 @@ HOST = "127.0.0.1"
 PORT = 3333
 FILENAME = "./examples/binaries/uart/hello_uart/hello_uart.bin"
 
+STOP_REPLY_TRAP = "S05"
+
 rp = Rp2040()
+send_queue = queue.Queue()
+rsock, ssock = socket.socketpair()  # Socket pair to signal main thread
+
+
+def encode_hex(value: int, length: int = 4) -> str:
+    return binascii.b2a_hex(value.to_bytes(length, 'little')).decode('utf-8')
+
+
+def decode_hex(hexstr: str) -> int:
+    return int.from_bytes(binascii.a2b_hex(hexstr), 'little')
 
 
 def gdb_checksum(packet_data: bytes) -> int:
@@ -28,25 +44,51 @@ def gdb_response(value: str) -> str:
 def handle_gdb_message(packet_data: str) -> str:
     response = ''
     if packet_data == 'Hg0':
+        # Set thread
         response = 'OK'
     elif packet_data[0] == 'q':
+        # Query
         if packet_data.startswith('qSupported:'):
             response = 'PacketSize=4000'
         elif packet_data == 'qAttached':
             response = '1'
     elif packet_data[0] == '?':
+        # Query halt reason
         response = 'S05'
     elif packet_data[0] == 'g':
-        reg_strings = [binascii.b2a_hex(r.to_bytes(4, 'little')).decode('utf-8') for r in rp.registers]
-        reg_strings.append(binascii.b2a_hex(rp.apsr.to_bytes(4, 'little')).decode('utf-8'))
+        # Read registers
+        reg_strings = [encode_hex(r) for r in rp.registers]
+        reg_strings.append(encode_hex(rp.apsr))
         response = ''.join(reg_strings)
     elif packet_data[0] == 'm':
+        # Read memory
         addr_str, length_str = packet_data[1:].split(',')
         addr = int(addr_str, 16)
         length = int(length_str)
         response = ''
         for i in range(length):
             response += f"{rp.mpu.read_uint8(addr + i):02x}"
+    elif packet_data[0] == 'M':
+        # Write memory
+        addr_length_str, value_str = packet_data[1:].split(':')
+        addr_str, length_str = addr_length_str.split(',')
+        addr = int(addr_str, 16)
+        length = int(length_str)
+        value = decode_hex(value_str)
+        rp.mpu.write(addr, value, length)
+        response = 'OK'
+    elif packet_data[0] == 'v':
+        if packet_data == 'vCont?':
+            response = 'vCont;c;C;s;S'
+        elif packet_data.startswith('vCont;s'):
+            rp.execute_instruction()
+            reg_strings = [f"{i:02x}:{encode_hex(r)}" for i, r in enumerate(rp.registers)]
+            reg_strings.append(f"{16:02x}:{encode_hex(rp.apsr)}")
+            response = f"T05{';'.join(reg_strings)};reason:trace;"
+        elif packet_data.startswith('vCont;c'):
+            execute_thread = threading.Thread(target=rp.execute, daemon=True)
+            execute_thread.start()
+            response = 'OK'
     return gdb_response(response)
 
 
@@ -67,9 +109,20 @@ def handle_packet(data: bytes) -> Optional[bytes]:
         return b'+' + handle_gdb_message(packet_data.decode('utf-8')).encode('utf-8')
 
 
+def on_break_callback(reason: int):
+    rp.on_break_default(reason)
+    if reason == 190:  # Not sure if this always works...
+        rp.pc = rp.pc_previous
+    response = gdb_response(STOP_REPLY_TRAP)
+    send_queue.put(response)
+    ssock.send(b'\x00')
+
+
+rp.on_break = on_break_callback
+
+
 def main():
     import argparse
-    from functools import partial
 
     parser = argparse.ArgumentParser(description='RPy2040-gdb - a RP2040 emulator written in Python (with GDB stub)')
 
@@ -100,20 +153,28 @@ def main():
         try:
             while True:
                 print("Waiting for connection...")
-                conn, addr = s.accept()
-                with conn:
+                gdb_conn, addr = s.accept()
+                with gdb_conn:
                     print(f"Connected by {addr}")
                     while True:
-                        data = conn.recv(4096)
-                        if not data:
-                            break
-                        if DEBUG:
-                            print(f"{data=}")
-                        response = handle_packet(data)
-                        if response:
-                            if DEBUG:
-                                print(f"{response=}")
-                            conn.sendall(response)
+                        rlist, _, _ = select.select([gdb_conn, rsock], [], [])
+                        for ready_socket in rlist:
+                            if ready_socket is gdb_conn:
+                                data = gdb_conn.recv(4096)
+                                if not data:
+                                    break
+                                if DEBUG:
+                                    print(f"> {data}")
+                                response = handle_packet(data)
+                                if response:
+                                    if DEBUG:
+                                        print(f"< {response}")
+                                    gdb_conn.sendall(response)
+                            else:
+                                # Signal from other thread
+                                rsock.recv(1)  # Dump the signal mark
+                                # Send the data.
+                                gdb_conn.sendall(send_queue.get().encode('utf-8'))
         except KeyboardInterrupt:
             pass
 

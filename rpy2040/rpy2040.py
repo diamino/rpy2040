@@ -5,7 +5,7 @@ Inspired by the rp2040js emulator by Uri Shaked (https://github.com/wokwi/rp2040
 '''
 import array
 import ctypes
-from typing import Iterable
+from typing import Iterable, Callable
 from .peripherals.mpu import Mpu
 from .peripherals.memory import ByteArrayMemory
 from .peripherals.uart import Uart
@@ -58,10 +58,14 @@ def add_with_carry(x: int, y: int, carry_in: bool) -> tuple[int, bool, bool]:
 class Rp2040:
 
     def __init__(self):
+        self.on_break: Callable[[int], None] = self.on_break_default
+        self.stopped = False
+        self.stop_reason = 0
         self.registers = array.array('l', 16*[0])
         self.apsr: int = 0
         self.primask_pm: bool = False
         self.pc = PC_START
+        self.pc_previous = PC_START
         self.sp = SP_START
         self.mpu = Mpu()
         rom_region = ByteArrayMemory(ROM_START, ROM_SIZE)
@@ -186,6 +190,7 @@ class Rp2040:
             print(f"\nPC: {self.pc:#010x}\tSP: {self.sp:#010x}\tAPSR: {self.apsr:#010x}")
         # TODO: Opcode loading can be sped up by referencing the XIP flash directly
         opcode = self.mpu.read_uint16(self.pc)
+        self.pc_previous = self.pc
         self.pc += 2
         opcode2 = 0
         if (opcode >> 12) == 0b1111:
@@ -329,6 +334,11 @@ class Rp2040:
             self.registers[dn] = result
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
+        # BKPT
+        elif (opcode >> 8) == 0b10111110:
+            imm8 = opcode & 0xff
+            print(" BKPT instruction...")
+            self.on_break(imm8)
         # BL
         elif ((opcode >> 11) == 0b11110) and ((opcode2 >> 14) == 0b11):
             print("  BL instruction...")
@@ -763,4 +773,18 @@ class Rp2040:
             self.registers[d] = self.registers[m] & 0xFF
         else:
             print(" Instruction not implemented!!!!")
-            raise NotImplementedError
+            # raise NotImplementedError
+            self.on_break(42)
+
+    def execute(self) -> None:
+        self.stopped = False
+        while not self.stopped:
+            self.execute_instruction()
+
+    def stop(self) -> None:
+        self.stopped = True
+
+    def on_break_default(self, reason: int) -> None:
+        self.stop()
+        self.stop_reason = reason
+        print(f"Execution stopped! Reason: {reason}")

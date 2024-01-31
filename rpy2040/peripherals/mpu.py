@@ -65,8 +65,8 @@ class MemoryRegionMap:
             return self.readhooks[address]()
         else:
             print(f"<< Read {num_bytes} bytes from {self.name} address [{address + self.base_address:#010x}]")
-            # return 0
-            raise MemoryError
+            return 0
+            # raise MemoryError
 
 
 class Mpu:
