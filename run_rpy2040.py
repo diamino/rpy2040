@@ -1,9 +1,16 @@
+import logging
 from rpy2040.rpy2040 import Rp2040, loadbin
+
+LOGGING_LEVEL = logging.ERROR
+
+logger = logging.getLogger(__name__)
 
 
 def main():  # pragma: no cover
     import argparse
     from functools import partial
+
+    logging.basicConfig(level=LOGGING_LEVEL)
 
     parser = argparse.ArgumentParser(description='RPy2040 - a RP2040 emulator written in Python')
 

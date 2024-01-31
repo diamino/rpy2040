@@ -8,6 +8,7 @@ import threading
 from functools import partial
 from typing import Optional
 import binascii
+import logging
 from rpy2040.rpy2040 import Rp2040, loadbin
 
 DEBUG = True
@@ -16,6 +17,8 @@ PORT = 3333
 FILENAME = "./examples/binaries/uart/hello_uart/hello_uart.bin"
 
 STOP_REPLY_TRAP = "S05"
+
+logger = logging.getLogger(__name__)
 
 rp = Rp2040()
 send_queue = queue.Queue()
@@ -96,14 +99,12 @@ def handle_packet(data: bytes) -> Optional[bytes]:
     dollar = data.find(b'$')
     hash = data.find(b'#')
     if (hash < dollar) | (hash != (len(data) - 3)):
-        if DEBUG:
-            print("Ignoring GDB command!")
+        logger.debug("Ignoring GDB command!")
         return None
     packet_data = data[dollar + 1: hash]
     checksum = int(data[hash + 1:], 16)
     if checksum != gdb_checksum(packet_data):
-        if DEBUG:
-            print("Checksum invalid!")
+        logger.debug("Checksum invalid!")
         return b'-'
     else:
         return b'+' + handle_gdb_message(packet_data.decode('utf-8')).encode('utf-8')
@@ -123,6 +124,8 @@ rp.on_break = on_break_callback
 
 def main():
     import argparse
+
+    logging.basicConfig(level=logging.ERROR)
 
     parser = argparse.ArgumentParser(description='RPy2040-gdb - a RP2040 emulator written in Python (with GDB stub)')
 
@@ -156,19 +159,18 @@ def main():
                 gdb_conn, addr = s.accept()
                 with gdb_conn:
                     print(f"Connected by {addr}")
-                    while True:
+                    connection_open = True
+                    while connection_open:
                         rlist, _, _ = select.select([gdb_conn, rsock], [], [])
                         for ready_socket in rlist:
                             if ready_socket is gdb_conn:
                                 data = gdb_conn.recv(4096)
                                 if not data:
-                                    break
-                                if DEBUG:
-                                    print(f"> {data}")
+                                    connection_open = False
+                                logger.debug(f"> {data}")
                                 response = handle_packet(data)
                                 if response:
-                                    if DEBUG:
-                                        print(f"< {response}")
+                                    logger.debug(f"< {response}")
                                     gdb_conn.sendall(response)
                             else:
                                 # Signal from other thread

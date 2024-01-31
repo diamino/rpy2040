@@ -5,6 +5,7 @@ Inspired by the rp2040js emulator by Uri Shaked (https://github.com/wokwi/rp2040
 '''
 import array
 import ctypes
+import logging
 from typing import Iterable, Callable
 from .peripherals.mpu import Mpu
 from .peripherals.memory import ByteArrayMemory
@@ -30,6 +31,8 @@ SRAM_SIZE = 264 * 1024  # 264kB
 # Default values for SP and PC
 SP_START = 0x20041000
 PC_START = 0x10000000
+
+logger = logging.getLogger("rpy2040")
 
 
 def loadbin(filename: str, mem: bytearray, offset: int = 0) -> None:
@@ -186,8 +189,8 @@ class Rp2040:
             return result
 
     def execute_instruction(self) -> None:
-        if DEBUG_REGISTERS:
-            print(f"\nPC: {self.pc:#010x}\tSP: {self.sp:#010x}\tAPSR: {self.apsr:#010x}")
+        logger.info("")
+        logger.info(f"PC: {self.pc:#010x}\tSP: {self.sp:#010x}\tAPSR: {self.apsr:#010x}")
         # TODO: Opcode loading can be sped up by referencing the XIP flash directly
         opcode = self.mpu.read_uint16(self.pc)
         self.pc_previous = self.pc
@@ -199,19 +202,18 @@ class Rp2040:
             opcode2 = self.mpu.read_uint16(self.pc)
             self.pc += 2
 
-        if DEBUG_REGISTERS:
-            print(self.str_registers(registers=range(4)))
-            print(self.str_registers(registers=range(4, 8)))
-            print(self.str_registers(registers=range(8, 12)))
-            print(self.str_registers(registers=range(12, 16)))
-            # print(f"Current opcode is [{opcode:04x}]")
+        logger.info(self.str_registers(registers=range(4)))
+        logger.info(self.str_registers(registers=range(4, 8)))
+        logger.info(self.str_registers(registers=range(8, 12)))
+        logger.info(self.str_registers(registers=range(12, 16)))
+
         # ADC
         if (opcode >> 6) == 0b0100000101:
-            print("  ADC instruction...")
+            logger.debug("  ADC instruction...")
             m = (opcode >> 3) & 0x07
             dn = opcode & 0x7
             # TODO: special case for SP register (13)
-            print(f"    Add R[{m}] to R[{dn}] with carry")
+            logger.debug(f"    Add R[{m}] to R[{dn}] with carry")
             result, c, v = add_with_carry(self.registers[dn], self.registers[m], self.apsr_c)
             self.registers[dn] = result
             self.apsr_n = bool(result & (1 << 31))
@@ -220,11 +222,11 @@ class Rp2040:
             self.apsr_v = v
         # ADD (immediate) T1
         elif (opcode >> 9) == 0b0001110:
-            print("  ADD (immediate) T1 instruction...")
+            logger.debug("  ADD (immediate) T1 instruction...")
             imm = ((opcode >> 6) & 0x7)
             n = ((opcode >> 3) & 0x7)
             d = opcode & 0x7
-            print(f"    Add {imm:#x} to R[{n}]\tDestination: R[{d}] ...")
+            logger.debug(f"    Add {imm:#x} to R[{n}]\tDestination: R[{d}] ...")
             result, c, v = add_with_carry(self.registers[n], imm, False)
             self.registers[d] = result
             self.apsr_n = bool(result & (1 << 31))
@@ -233,10 +235,10 @@ class Rp2040:
             self.apsr_v = v
         # ADD (immediate) T2
         elif (opcode >> 11) == 0b00110:
-            print("  ADD (immediate) T2 instruction...")
+            logger.debug("  ADD (immediate) T2 instruction...")
             dn = ((opcode >> 8) & 0x7)
             imm = opcode & 0xFF
-            print(f"    Add {imm:#x} to R[{dn}] ...")
+            logger.debug(f"    Add {imm:#x} to R[{dn}] ...")
             result, c, v = add_with_carry(self.registers[dn], imm, False)
             self.registers[dn] = result
             self.apsr_n = bool(result & (1 << 31))
@@ -245,11 +247,11 @@ class Rp2040:
             self.apsr_v = v
         # ADD (register) T1
         elif (opcode >> 9) == 0b0001100:
-            print("  ADD (register) T1 instruction...")
+            logger.debug("  ADD (register) T1 instruction...")
             m = ((opcode >> 6) & 0x7)
             n = ((opcode >> 3) & 0x7)
             d = opcode & 0x7
-            print(f"    Add R[{n}] to R[{m}]\tDestination: R[{d}] ...")
+            logger.debug(f"    Add R[{n}] to R[{m}]\tDestination: R[{d}] ...")
             result, c, v = add_with_carry(self.registers[n], self.registers[m], False)
             self.registers[d] = result
             if d != 15:
@@ -259,44 +261,44 @@ class Rp2040:
                 self.apsr_v = v
         # ADD (register) T2
         elif (opcode >> 8) == 0b01000100:
-            print("  ADD (register) T2 instruction...")
+            logger.debug("  ADD (register) T2 instruction...")
             dn = ((opcode >> 4) & 0x08) | (opcode & 0x7)
             m = (opcode >> 3) & 0xF
             # TODO: special case for SP register (13)
-            print(f"    Source R[{m}]\tDestination R[{dn}]")
+            logger.debug(f"    Source R[{m}]\tDestination R[{dn}]")
             self.registers[dn] = self.registers[m] + self.registers[dn]
         # ADD (SP plus immediate) T2
         elif (opcode >> 7) == 0b101100000:
-            print("  ADD (SP plus immediate) T2 instruction...")
+            logger.debug("  ADD (SP plus immediate) T2 instruction...")
             imm32 = (opcode & 0x7F) << 2
-            print(f"    Add {imm32:#x} to SP...")
+            logger.debug(f"    Add {imm32:#x} to SP...")
             result, c, v = add_with_carry(self.sp, imm32, False)
             self.sp = result
         # ADR
         elif (opcode >> 11) == 0b10100:
-            print("  ADR instruction...")
+            logger.debug("  ADR instruction...")
             d = (opcode >> 8) & 0x7
             imm32 = (opcode & 0xff) << 2
-            print(f"    Value [{imm32}]+PC \tDestination R[{d}]")
+            logger.debug(f"    Value [{imm32}]+PC \tDestination R[{d}]")
             self.registers[d] = (self.pc & 0xfffffffc) + imm32
         # AND
         elif (opcode >> 6) == 0b0100000000:
-            print("  AND instruction...")
+            logger.debug("  AND instruction...")
             m = ((opcode >> 3) & 0x7)
             dn = opcode & 0x7
-            print(f"    AND r{dn}, r{m}...")
+            logger.debug(f"    AND r{dn}, r{m}...")
             result = self.registers[dn] & self.registers[m]
             self.registers[dn] = result
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
         # ASR (immediate)
         elif (opcode >> 11) == 0b00010:
-            print("  ASR (immediate) instruction...")
+            logger.debug("  ASR (immediate) instruction...")
             m = (opcode >> 3) & 0x07
             d = opcode & 0x07
             imm5 = (opcode >> 6) & 0x1F
             shift_n = imm5 if imm5 != 0 else 32
-            print(f"    Source R[{m}]\tDestination R[{d}]\tShift amount [{shift_n}]")
+            logger.debug(f"    Source R[{m}]\tDestination R[{d}]\tShift amount [{shift_n}]")
             if shift_n < 32:
                 result = sign_extend(self.registers[m] >> shift_n, 32 - shift_n)
             else:
@@ -307,27 +309,27 @@ class Rp2040:
             self.apsr_c = bool((self.registers[m] >> (shift_n - 1)) & 1)
         # B T1
         elif (opcode >> 12) == 0b1101:
-            print("  B T1 instruction...")
+            logger.debug("  B T1 instruction...")
             imm8 = opcode & 0xff
             cond = (opcode >> 8) & 0xf
             imm32 = sign_extend(imm8 << 1, 9)
-            print(f"    {imm32=}")
+            logger.debug(f"    {imm32=}")
             if self.condition_passed(cond):
-                print(f"    Branch to: {(self.pc + imm32 + 2):#010x}")
+                logger.debug(f"    Branch to: {(self.pc + imm32 + 2):#010x}")
                 self.pc += imm32 + 2
             else:
-                print(f"    Condition False. Will NOT branch to: {(self.pc + imm32 + 2):#010x}")
+                logger.debug(f"    Condition False. Will NOT branch to: {(self.pc + imm32 + 2):#010x}")
         # B T2
         elif (opcode >> 11) == 0b11100:
-            print("  B T2 instruction...")
+            logger.debug("  B T2 instruction...")
             imm11 = opcode & 0x7ff
             imm32 = sign_extend(imm11 << 1, 12)
-            print(f"    {imm32=}")
-            print(f"    Branch to: {(self.pc + imm32 + 2):#010x}")
+            logger.debug(f"    {imm32=}")
+            logger.debug(f"    Branch to: {(self.pc + imm32 + 2):#010x}")
             self.pc += imm32 + 2
         # BIC
         elif (opcode >> 6) == 0b0100001110:
-            print("  BIC instruction...")
+            logger.debug("  BIC instruction...")
             dn = opcode & 0x7
             m = (opcode >> 3) & 0x7
             result = self.registers[dn] & ~self.registers[m]
@@ -337,11 +339,11 @@ class Rp2040:
         # BKPT
         elif (opcode >> 8) == 0b10111110:
             imm8 = opcode & 0xff
-            print(" BKPT instruction...")
+            logger.debug(" BKPT instruction...")
             self.on_break(imm8)
         # BL
         elif ((opcode >> 11) == 0b11110) and ((opcode2 >> 14) == 0b11):
-            print("  BL instruction...")
+            logger.debug("  BL instruction...")
             imm10 = opcode & 0x3ff
             imm11 = opcode2 & 0x7ff
             j1 = bool(opcode2 & 0x2000)
@@ -349,35 +351,35 @@ class Rp2040:
             s = bool(opcode & 0x400)
             i1 = not (j1 ^ s)
             i2 = not (j2 ^ s)
-            print(f"    {j1=} {j2=} {s=} {i1=} {i2=} {imm10=} {imm11=}")
+            logger.debug(f"    {j1=} {j2=} {s=} {i1=} {i2=} {imm10=} {imm11=}")
             imm23 = int(i1) << 23 | int(i2) << 22 | imm10 << 12 | imm11 << 1
             imm32 = sign_extend(imm23, 23)
-            print(f"    {imm32=}")
-            print(f"    Branch to: {(self.pc + imm32):#010x}")
+            logger.debug(f"    {imm32=}")
+            logger.debug(f"    Branch to: {(self.pc + imm32):#010x}")
             self.lr = self.pc | 0x1
             self.pc += imm32
         # BLX
         elif (opcode >> 7) == 0b010001111:
-            print("  BLX instruction...")
+            logger.debug("  BLX instruction...")
             m = (opcode >> 3) & 0xf
             address = self.registers[m] & 0xfffffffe
-            print(f"    Branch to: {address:#010x}")
+            logger.debug(f"    Branch to: {address:#010x}")
             self.lr = self.pc | 0x1
             self.pc = address
         # BX
         elif (opcode >> 7) == 0b010001110:
-            print("  BX instruction...")
+            logger.debug("  BX instruction...")
             m = (opcode >> 3) & 0xf
             # TODO: handle exception cases
             address = self.registers[m] & 0xfffffffe
-            print(f"    Branch to: {address:#010x}")
+            logger.debug(f"    Branch to: {address:#010x}")
             self.pc = address
         # CMP (immediate)
         elif (opcode >> 11) == 0b00101:
-            print("  CMP (immediate) instruction...")
+            logger.debug("  CMP (immediate) instruction...")
             n = ((opcode >> 8) & 0x7)
             imm = opcode & 0xFF
-            print(f"    Compare R[{n}] with {imm:#x}...")
+            logger.debug(f"    Compare R[{n}] with {imm:#x}...")
             result, c, v = add_with_carry(self.registers[n], ~imm, True)
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
@@ -385,10 +387,10 @@ class Rp2040:
             self.apsr_v = v
         # CMP (register) T1
         elif (opcode >> 6) == 0b0100001010:
-            print("  CMP (register) T1 instruction...")
+            logger.debug("  CMP (register) T1 instruction...")
             m = ((opcode >> 3) & 0x7)
             n = opcode & 0x7
-            print(f"    Compare R[{n}] with R[{m}]...")
+            logger.debug(f"    Compare R[{n}] with R[{m}]...")
             result, c, v = add_with_carry(self.registers[n], ~self.registers[m], True)
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
@@ -396,34 +398,34 @@ class Rp2040:
             self.apsr_v = v
         # CPS
         elif (opcode >> 5) == 0b10110110011:
-            print("  CPS instruction...")
+            logger.debug("  CPS instruction...")
             im = ((opcode >> 4) & 0x1)
             effect = 'ID' if im == 1 else 'IE'
-            print(f"    CPS{effect} i...")
+            logger.debug(f"    CPS{effect} i...")
             # TODO: only execute when in privileged mode
             self.primask_pm = bool(im)
         # DMB
         elif (opcode == 0b1111001110111111) and ((opcode2 >> 4) == 0b100011110101):
             assert (opcode2 & 0xf) == 0b1111
-            print("    DMB sy")
+            logger.debug("    DMB sy")
             pass
         # EOR
         elif (opcode >> 6) == 0b0100000001:
             m = ((opcode >> 3) & 0x7)
             dn = opcode & 0x7
-            print(f"    EOR r{dn}, r{m}")
+            logger.debug(f"    EOR r{dn}, r{m}")
             result = self.registers[dn] ^ self.registers[m]
             self.registers[dn] = result
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
         # LDM
         elif (opcode >> 11) == 0b11001:
-            print("  LDM instruction...")
+            logger.debug("  LDM instruction...")
             n = (opcode >> 8) & 0x7
             register_list = opcode & 0xff
             address = self.registers[n]
             wback = not ((register_list >> n) & 1)
-            print(f"    Destination registers[{register_list:#b}]\tSource address [{address:#010x}]")
+            logger.debug(f"    Destination registers[{register_list:#b}]\tSource address [{address:#010x}]")
             for i in range(8):
                 if (register_list >> i) & 1:
                     self.registers[i] = self.mpu.read_uint32(address)
@@ -432,82 +434,82 @@ class Rp2040:
                 self.registers[n] += 4 * register_list.bit_count()
         # LDR (immediate)
         elif (opcode >> 11) == 0b01101:
-            print("  LDR (immediate) instruction...")
+            logger.debug("  LDR (immediate) instruction...")
             n = (opcode >> 3) & 0x7
             t = opcode & 0x7
             imm = ((opcode >> 6) & 0x1F) << 2
             address = self.registers[n] + imm
-            print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
+            logger.debug(f"    Destination R[{t}]\tSource address [{address:#010x}]")
             self.registers[t] = self.mpu.read_uint32(address)
         # LDR immediate (T2)
         elif (opcode >> 11) == 0b10011:
-            print("  LDR (immediate) T2 instruction...")
+            logger.debug("  LDR (immediate) T2 instruction...")
             t = (opcode >> 8) & 0x7
             imm32 = (opcode & 0xff) << 2
             address = self.registers[13] + imm32
-            print(f"    Source address [{address:#010x}]\tDestination R[{t}]")
+            logger.debug(f"    Source address [{address:#010x}]\tDestination R[{t}]")
             self.registers[t] = self.mpu.read_uint32(address)
         # LDR (literal)
         elif (opcode >> 11) == 0b01001:
-            print("  LDR (literal) instruction...")
+            logger.debug("  LDR (literal) instruction...")
             t = (opcode >> 8) & 0x7
             imm = (opcode & 0xFF) << 2
             base = (self.pc + 2) & 0xfffffffc
             address = base + imm
-            print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
+            logger.debug(f"    Destination R[{t}]\tSource address [{address:#010x}]")
             self.registers[t] = self.mpu.read_uint32(address)
         # LDR (register)
         elif (opcode >> 9) == 0b0101100:
-            print("  LDR (register) instruction...")
+            logger.debug("  LDR (register) instruction...")
             m = (opcode >> 6) & 0x7
             n = (opcode >> 3) & 0x7
             t = opcode & 0x7
             address = self.registers[n] + self.registers[m]
-            print(f"    LDR r{t}, [r{n}, r{m}]")
+            logger.debug(f"    LDR r{t}, [r{n}, r{m}]")
             self.registers[t] = self.mpu.read_uint32(address)
         # LDRB (immediate)
         elif (opcode >> 11) == 0b01111:
-            print("  LDRB (immediate) instruction...")
+            logger.debug("  LDRB (immediate) instruction...")
             imm5 = (opcode >> 6) & 0x1F
             n = (opcode >> 3) & 0x7
             t = opcode & 0x7
             address = self.registers[n] + imm5
-            print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
+            logger.debug(f"    Destination R[{t}]\tSource address [{address:#010x}]")
             self.registers[t] = self.mpu.read_uint8(address)
         # LDRB (register)
         elif (opcode >> 9) == 0b0101110:
-            print("  LDRB (register) instruction...")
+            logger.debug("  LDRB (register) instruction...")
             m = (opcode >> 6) & 0x7
             n = (opcode >> 3) & 0x7
             t = opcode & 0x7
             address = self.registers[n] + self.registers[m]
-            print(f"    LRDB r{t}, [r{n}, r{m}]")
+            logger.debug(f"    LRDB r{t}, [r{n}, r{m}]")
             self.registers[t] = self.mpu.read_uint8(address)
         # LDRH (immediate)
         elif (opcode >> 11) == 0b10001:
-            print("  LDRH (immediate) instruction...")
+            logger.debug("  LDRH (immediate) instruction...")
             imm5 = (opcode >> 6) & 0x1F
             n = (opcode >> 3) & 0x7
             t = opcode & 0x7
             address = self.registers[n] + (imm5 << 1)
-            print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
+            logger.debug(f"    Destination R[{t}]\tSource address [{address:#010x}]")
             self.registers[t] = self.mpu.read_uint16(address)
         # LDRSH (register)
         elif (opcode >> 9) == 0b0101111:
-            print("  LDRSH (register) instruction...")
+            logger.debug("  LDRSH (register) instruction...")
             m = (opcode >> 6) & 0x7
             n = (opcode >> 3) & 0x7
             t = opcode & 0x7
             address = self.registers[n] + self.registers[m]
-            print(f"    Destination R[{t}]\tSource address [{address:#010x}]")
+            logger.debug(f"    Destination R[{t}]\tSource address [{address:#010x}]")
             self.registers[t] = self.mpu.read_uint16(address)
         # LSLS (immediate)
         elif (opcode >> 11) == 0b00000:
-            print("  LSLS (immediate) instruction...")
+            logger.debug("  LSLS (immediate) instruction...")
             m = (opcode >> 3) & 0x07
             d = opcode & 0x07
             shift_n = (opcode >> 6) & 0x1F
-            print(f"    Source R[{m}]\tDestination R[{d}]\tShift amount [{shift_n}]")
+            logger.debug(f"    Source R[{m}]\tDestination R[{d}]\tShift amount [{shift_n}]")
             result = self.registers[m] << shift_n
             self.registers[d] = result & 0xFFFFFFFF
             if d != 15:  # This is actually MOV reg T2 encoding
@@ -517,11 +519,11 @@ class Rp2040:
                     self.apsr_c = bool(result & (1 << 32))
         # LSLS (register)
         elif (opcode >> 6) == 0b0100000010:
-            print("  LSLS (register) instruction...")
+            logger.debug("  LSLS (register) instruction...")
             m = (opcode >> 3) & 0x7
             d = opcode & 0x7
             shift_n = self.registers[m] & 0xFF
-            print(f"    Source and destination R[{d}]\tShift amount [{shift_n}]")
+            logger.debug(f"    Source and destination R[{d}]\tShift amount [{shift_n}]")
             result = self.registers[d] << shift_n
             self.registers[d] = result & 0xFFFFFFFF
             self.apsr_n = bool(result & (1 << 31))
@@ -530,12 +532,12 @@ class Rp2040:
                 self.apsr_c = bool(result & (1 << 32))
         # LSR (immediate)
         elif (opcode >> 11) == 0b00001:
-            print("  LSR (immediate) instruction...")
+            logger.debug("  LSR (immediate) instruction...")
             m = (opcode >> 3) & 0x07
             d = opcode & 0x07
             imm5 = (opcode >> 6) & 0x1F
             shift_n = imm5 if imm5 != 0 else 32
-            print(f"    Source R[{m}]\tDestination R[{d}]\tShift amount [{shift_n}]")
+            logger.debug(f"    Source R[{m}]\tDestination R[{d}]\tShift amount [{shift_n}]")
             result = self.registers[m] >> shift_n
             self.registers[d] = result & 0xFFFFFFFF
             self.apsr_n = bool(result & (1 << 31))
@@ -543,19 +545,19 @@ class Rp2040:
             self.apsr_c = bool((self.registers[m] >> (shift_n - 1)) & 1)
         # MOV (immediate)
         elif (opcode >> 11) == 0b00100:
-            print("  MOV (immediate) instruction...")
+            logger.debug("  MOV (immediate) instruction...")
             d = (opcode >> 8) & 0x07
             value = opcode & 0xFF
-            print(f"    Destination register is [{d}]\tValue is [{value}]")
+            logger.debug(f"    Destination register is [{d}]\tValue is [{value}]")
             self.registers[d] = value
             self.apsr_n = bool(value & (1 << 31))
             self.apsr_z = bool(value == 0)
         # MOV (register)
         elif (opcode >> 8) == 0b01000110:
-            print("  MOV (register) instruction...")
+            logger.debug("  MOV (register) instruction...")
             d = ((opcode >> 4) & 0x08) | (opcode & 0x7)
             m = (opcode >> 3) & 0xF
-            print(f"    Source R[{m}]\tDestination R[{d}]")
+            logger.debug(f"    Source R[{m}]\tDestination R[{d}]")
             result = self.registers[m]
             self.registers[d] = result
             # if d != 15:
@@ -563,18 +565,18 @@ class Rp2040:
             #     self.apsr_z = bool(result == 0)
         # MRS
         elif (opcode == 0b1111001111101111) and ((opcode2 >> 12) == 0b1000):
-            print("  MRS instruction...")
+            logger.debug("  MRS instruction...")
             d = (opcode2 >> 8) & 0xf
             sysm = opcode2 & 0xff
-            print(f"    Source SYSm[{sysm}]\tDestination R[{d}]")
+            logger.debug(f"    Source SYSm[{sysm}]\tDestination R[{d}]")
             # TODO: other registers like APSR, PRIMASK, etc
             # TODO: privileged and unprivileged mode
         # MSR
         elif ((opcode >> 5) == 0b11110011100) and ((opcode2 >> 14) == 0b10):
-            print("  MSR instruction...")
+            logger.debug("  MSR instruction...")
             n = opcode & 0xf
             sysm = opcode2 & 0xff
-            print(f"    Source R[{n}]\tDestination SYSm[{sysm}]")
+            logger.debug(f"    Source R[{n}]\tDestination SYSm[{sysm}]")
             # TODO: other registers like APSR, PRIMASK, etc
             # TODO: privileged and unprivileged mode
             if sysm >> 3 == 1:  # SP
@@ -582,27 +584,27 @@ class Rp2040:
                     self.sp = self.registers[n] & 0xfffffffc
         # MVN
         elif (opcode >> 6) == 0b0100001111:
-            print("  MVN instruction...")
+            logger.debug("  MVN instruction...")
             m = ((opcode >> 3) & 0x7)
             d = opcode & 0x7
-            print(f"    Bitwise NOT on R[{m}] and store in R[{d}]...")
+            logger.debug(f"    Bitwise NOT on R[{m}] and store in R[{d}]...")
             result = ~self.registers[m] & 0xffffffff
             self.registers[d] = result
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
         # ORR
         elif (opcode >> 6) == 0b0100001100:
-            print("  ORR instruction...")
+            logger.debug("  ORR instruction...")
             m = ((opcode >> 3) & 0x7)
             dn = opcode & 0x7
-            print(f"    ORR r{dn}, r{m}...")
+            logger.debug(f"    ORR r{dn}, r{m}...")
             result = self.registers[dn] | self.registers[m]
             self.registers[dn] = result
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
         # POP
         elif (opcode >> 9) == 0b1011110:
-            print("  POP instruction...")
+            logger.debug("  POP instruction...")
             p = (opcode >> 8) & 0x1
             register_list = (p << 15) | opcode & 0xff
             address = self.sp
@@ -615,7 +617,7 @@ class Rp2040:
             self.sp += 4 * register_list.bit_count()
         # PUSH
         elif (opcode >> 9) == 0b1011010:
-            print("  PUSH instruction...")
+            logger.debug("  PUSH instruction...")
             bitcount = (opcode & 0x1FF).bit_count()
             address = self.sp - 4 * bitcount
             for i in range(8):
@@ -627,10 +629,10 @@ class Rp2040:
             self.sp -= 4 * bitcount
         # RSB / NEG
         elif (opcode >> 6) == 0b0100001001:
-            print("  RSB / NEG instruction...")
+            logger.debug("  RSB / NEG instruction...")
             n = ((opcode >> 3) & 0x7)
             d = opcode & 0x7
-            print(f"    Subtract R[{n}] from 0 and store in R[{d}]...")
+            logger.debug(f"    Subtract R[{n}] from 0 and store in R[{d}]...")
             result, c, v = add_with_carry(~self.registers[n], 0, True)
             self.registers[d] = result
             self.apsr_n = bool(result & (1 << 31))
@@ -639,10 +641,10 @@ class Rp2040:
             self.apsr_v = v
         # SBC
         elif (opcode >> 6) == 0b0100000110:
-            print("  SBC instruction...")
+            logger.debug("  SBC instruction...")
             m = ((opcode >> 3) & 0x7)
             dn = opcode & 0x7
-            print(f"    SBCS r{dn}, r{m}")
+            logger.debug(f"    SBCS r{dn}, r{m}")
             result, c, v = add_with_carry(self.registers[dn], ~self.registers[m], self.apsr_c)
             self.registers[dn] = result
             self.apsr_n = bool(result & (1 << 31))
@@ -651,11 +653,11 @@ class Rp2040:
             self.apsr_v = v
         # STM
         elif (opcode >> 11) == 0b11000:
-            print("  STM instruction...")
+            logger.debug("  STM instruction...")
             n = (opcode >> 8) & 0x7
             register_list = opcode & 0xff
             address = self.registers[n]
-            print(f"    Source registers[{register_list:#b}]\tDestination address [{address:#010x}]")
+            logger.debug(f"    Source registers[{register_list:#b}]\tDestination address [{address:#010x}]")
             for i in range(8):
                 if (register_list >> i) & 1:
                     self.mpu.write_uint32(address, self.registers[i])
@@ -663,29 +665,29 @@ class Rp2040:
             self.registers[n] += 4 * register_list.bit_count()
         # STR immediate (T1)
         elif (opcode >> 11) == 0b01100:
-            print("  STR (immediate) T1 instruction...")
+            logger.debug("  STR (immediate) T1 instruction...")
             n = (opcode >> 3) & 0x7
             t = opcode & 0x7
             imm = ((opcode >> 6) & 0x1F) << 2
             address = self.registers[n] + imm
-            print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
+            logger.debug(f"    Source R[{t}]\tDestination address [{address:#010x}]")
             self.mpu.write_uint32(address, self.registers[t])
         # STR immediate (T2)
         elif (opcode >> 11) == 0b10010:
-            print("  STR (immediate) T2 instruction...")
+            logger.debug("  STR (immediate) T2 instruction...")
             t = (opcode >> 8) & 0x7
             imm32 = (opcode & 0xff) << 2
             address = self.registers[13] + imm32
-            print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
+            logger.debug(f"    Source R[{t}]\tDestination address [{address:#010x}]")
             self.mpu.write_uint32(address, self.registers[t])
         # STR register
         elif (opcode >> 9) == 0b0101000:
-            print("  STR (register) instruction...")
+            logger.debug("  STR (register) instruction...")
             m = (opcode >> 6) & 0x7
             n = (opcode >> 3) & 0x7
             t = opcode & 0x7
             address = self.registers[n] + self.registers[m]
-            print(f"    Source R[{t}]\tDestination address [{address:#010x}]")
+            logger.debug(f"    Source R[{t}]\tDestination address [{address:#010x}]")
             self.mpu.write_uint32(address, self.registers[t])
         # STRB immediate
         elif (opcode >> 11) == 0b01110:
@@ -693,7 +695,7 @@ class Rp2040:
             n = (opcode >> 3) & 0x7
             t = opcode & 0x7
             address = self.registers[n] + imm5
-            print(f"    STRB r{t}, [r{n}, #{imm5}]")
+            logger.debug(f"    STRB r{t}, [r{n}, #{imm5}]")
             self.mpu.write(address, self.registers[t] & 0xff, num_bytes=1)
         # STRB register
         elif (opcode >> 9) == 0b0101010:
@@ -701,7 +703,7 @@ class Rp2040:
             n = (opcode >> 3) & 0x7
             t = opcode & 0x7
             address = self.registers[n] + self.registers[m]
-            print(f"    STRB r{t}, [r{n}, r{m}]")
+            logger.debug(f"    STRB r{t}, [r{n}, r{m}]")
             self.mpu.write(address, self.registers[t] & 0xff, num_bytes=1)
         # STRH register
         elif (opcode >> 9) == 0b0101001:
@@ -709,14 +711,14 @@ class Rp2040:
             n = (opcode >> 3) & 0x7
             t = opcode & 0x7
             address = self.registers[n] + self.registers[m]
-            print(f"    STRH r{t}, [r{n}, r{m}]")
+            logger.debug(f"    STRH r{t}, [r{n}, r{m}]")
             self.mpu.write(address, self.registers[t] & 0xffff, num_bytes=2)
         # SUB (immediate) T1
         elif (opcode >> 9) == 0b0001111:
             d = opcode & 0x7
             n = (opcode >> 3) & 0x7
             imm = (opcode >> 6) & 0x7
-            print(f"    SUBS r{d}, r{n}, #{imm}")
+            logger.debug(f"    SUBS r{d}, r{n}, #{imm}")
             result, c, v = add_with_carry(self.registers[n], ~imm, True)
             self.registers[d] = result
             self.apsr_n = bool(result & (1 << 31))
@@ -725,10 +727,10 @@ class Rp2040:
             self.apsr_v = v
         # SUB (immediate) T2
         elif (opcode >> 11) == 0b00111:
-            print("  SUB (immediate) T2 instruction...")
+            logger.debug("  SUB (immediate) T2 instruction...")
             dn = ((opcode >> 8) & 0x7)
             imm = opcode & 0xFF
-            print(f"    Subtract {imm:#x} from R[{dn}]...")
+            logger.debug(f"    Subtract {imm:#x} from R[{dn}]...")
             result, c, v = add_with_carry(self.registers[dn], ~imm, True)
             self.registers[dn] = result
             self.apsr_n = bool(result & (1 << 31))
@@ -737,11 +739,11 @@ class Rp2040:
             self.apsr_v = v
         # SUB (register) T1
         elif (opcode >> 9) == 0b0001101:
-            print("  SUB (register) T1 instruction...")
+            logger.debug("  SUB (register) T1 instruction...")
             m = ((opcode >> 6) & 0x7)
             n = ((opcode >> 3) & 0x7)
             d = opcode & 0x7
-            print(f"    Add R[{n}] to R[{m}]\tDestination: R[{d}] ...")
+            logger.debug(f"    Add R[{n}] to R[{m}]\tDestination: R[{d}] ...")
             result, c, v = add_with_carry(self.registers[n], ~self.registers[m], True)
             self.registers[d] = result
             if d != 15:
@@ -751,28 +753,28 @@ class Rp2040:
                 self.apsr_v = v
         # SUB (SP minus immediate)
         elif (opcode >> 7) == 0b101100001:
-            print("  SUB (SP minus immediate) instruction...")
+            logger.debug("  SUB (SP minus immediate) instruction...")
             imm32 = (opcode & 0x7F) << 2
-            print(f"    Subtract {imm32:#x} from SP...")
+            logger.debug(f"    Subtract {imm32:#x} from SP...")
             result, c, v = add_with_carry(self.sp, ~imm32, True)
             self.sp = result
         # TST immediate (T1)
         elif (opcode >> 6) == 0b0100001000:
-            print("  TST instruction...")
+            logger.debug("  TST instruction...")
             n = opcode & 0x7
             m = (opcode >> 3) & 0x7
             result = self.registers[n] & self.registers[m]
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
-            print(f"  APSR: {self.apsr:08x}")
+            logger.debug(f"  APSR: {self.apsr:08x}")
         # UXTB
         elif (opcode >> 6) == 0b1011001011:
-            print("  UXTB instruction...")
+            logger.debug("  UXTB instruction...")
             d = opcode & 0x7
             m = (opcode >> 3) & 0x7
             self.registers[d] = self.registers[m] & 0xFF
         else:
-            print(" Instruction not implemented!!!!")
+            logger.warning(" Instruction not implemented!!!!")
             # raise NotImplementedError
             self.on_break(42)
 
@@ -787,4 +789,4 @@ class Rp2040:
     def on_break_default(self, reason: int) -> None:
         self.stop()
         self.stop_reason = reason
-        print(f"Execution stopped! Reason: {reason}")
+        logger.warning(f"Execution stopped! Reason: {reason}")

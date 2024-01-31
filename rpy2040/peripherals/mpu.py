@@ -1,11 +1,14 @@
 '''
 MPU implementation of the RPy2040 project
 '''
+import logging
 from typing import Protocol, Optional, Callable
 
 ATOMIC_XOR = 1
 ATOMIC_SET = 2
 ATOMIC_CLEAR = 3
+
+logger = logging.getLogger("rpy2040")
 
 
 class MemoryRegion(Protocol):
@@ -57,14 +60,14 @@ class MemoryRegionMap:
         if address in self.writehooks:
             self.writehooks[address](value)
         else:
-            print(f">> Write of value [{value}/{value:#x}] to {self.name} address [{address + self.base_address:#010x}]")  # noqa: E501
+            logger.info(f">> Write of value [{value}/{value:#x}] to {self.name} address [{address + self.base_address:#010x}]")  # noqa: E501
             # raise MemoryError
 
     def read(self, address: int, num_bytes: int = 4) -> int:
         if address in self.readhooks:
             return self.readhooks[address]()
         else:
-            print(f"<< Read {num_bytes} bytes from {self.name} address [{address + self.base_address:#010x}]")
+            logger.info(f"<< Read {num_bytes} bytes from {self.name} address [{address + self.base_address:#010x}]")
             return 0
             # raise MemoryError
 
@@ -83,7 +86,7 @@ class Mpu:
         for _, region in self.regions.items():
             if (address >= region.base_address) and (address < (region.base_address + region.size)):
                 return region
-        print(f"MMU: No matching region found for address {address:#010x}!!!")
+        logger.warning(f"MMU: No matching region found for address {address:#010x}!!!")
         return None
 
     def write(self, address: int, value: int, num_bytes: int = 4) -> None:
