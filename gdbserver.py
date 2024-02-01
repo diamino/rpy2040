@@ -137,6 +137,8 @@ def main():
                         help='The entry point for execution in hex format (eg. 0x10000354). Defaults to 0x10000000 if no bootrom is loaded.')  # noqa: E501
     parser.add_argument('-b', '--bootrom', type=str,
                         help='The binary (.bin) file that holds the bootrom code. Defaults to bootrom.bin')
+    parser.add_argument('-S', '--serial', type=str,
+                        help='Use serial port for UART0. Specify serial port device (e.g /dev/ttyp1)')
 
     args = parser.parse_args()
 
@@ -148,6 +150,9 @@ def main():
 
     if args.entry_point:
         rp.pc = args.entry_point
+
+    if args.serial:
+        rp.mpu.regions['uart0'].init_serial(serial_port=args.serial)
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((HOST, PORT))
