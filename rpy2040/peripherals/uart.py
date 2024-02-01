@@ -2,6 +2,9 @@
 UART implementation of the RPy2040 project
 '''
 from .mpu import MemoryRegionMap
+import serial
+
+SERIAL_PORT = '/dev/ttyp1'
 
 # UART
 UART0_BASE = 0x40034000
@@ -25,9 +28,16 @@ class Uart(MemoryRegionMap):
         self.readhooks[UARTIBRD] = self.read_uartibrd
         self.readhooks[UARTFBRD] = self.read_uartfbrd
         self.readhooks[UARTCR] = self.read_uartcr
+        self.ser = None
+
+    def init_serial(self, serial_port: str = SERIAL_PORT):
+        self.ser = serial.Serial(serial_port, 19200, timeout=1)
 
     def write_uartdr(self, value: int) -> None:
-        print(f"UART: Write to data register [{value:#x}/'{chr(value)}']...")
+        if self.ser:
+            self.ser.write(value.to_bytes())
+        else:
+            print(f"UART: Write to data register [{value:#x}/'{chr(value)}']...")
 
     def read_uartfr(self) -> int:
         return self.uartfr
