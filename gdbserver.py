@@ -11,7 +11,8 @@ import binascii
 import logging
 from rpy2040.rpy2040 import Rp2040, loadbin
 
-DEBUG = True
+LOGGING_LEVEL = logging.ERROR
+
 HOST = "127.0.0.1"
 PORT = 3333
 FILENAME = "./examples/binaries/uart/hello_uart/hello_uart.bin"
@@ -63,6 +64,13 @@ def handle_gdb_message(packet_data: str) -> str:
         reg_strings = [encode_hex(r) for r in rp.registers]
         reg_strings.append(encode_hex(rp.apsr))
         response = ''.join(reg_strings)
+    elif packet_data[0] == 'G':
+        # Write registers
+        reg_strings = [packet_data[1+(8*i):9+(8*i)] for i in range(17)]
+        for i, v in enumerate(reg_strings[:16]):
+            rp.registers[i] = decode_hex(v)
+        rp.apsr = decode_hex(reg_strings[16])
+        response = 'OK'
     elif packet_data[0] == 'm':
         # Read memory
         addr_str, length_str = packet_data[1:].split(',')
@@ -125,7 +133,7 @@ rp.on_break = on_break_callback
 def main():
     import argparse
 
-    logging.basicConfig(level=logging.ERROR)
+    logging.basicConfig(level=LOGGING_LEVEL)
 
     parser = argparse.ArgumentParser(description='RPy2040-gdb - a RP2040 emulator written in Python (with GDB stub)')
 
