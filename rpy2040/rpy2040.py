@@ -308,7 +308,7 @@ class Rp2040:
             self.apsr_z = bool(result == 0)
             self.apsr_c = bool((self.registers[m] >> (shift_n - 1)) & 1)
         # B T1
-        elif (opcode >> 12) == 0b1101:
+        elif ((opcode >> 12) == 0b1101) and (((opcode >> 9) & 0x7) != 0b111):
             logger.debug("  B T1 instruction...")
             imm8 = opcode & 0xff
             cond = (opcode >> 8) & 0xf
