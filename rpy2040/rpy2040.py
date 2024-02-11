@@ -597,6 +597,7 @@ class Rp2040:
             logger.debug(f"    Source SYSm[{sysm}]\tDestination R[{d}]")
             # TODO: other registers like APSR, PRIMASK, etc
             # TODO: privileged and unprivileged mode
+            self.registers[d] = 0  # Always set result register to zero
         # MSR
         elif ((opcode >> 5) == 0b11110011100) and ((opcode2 >> 14) == 0b10):
             logger.debug("  MSR instruction...")
