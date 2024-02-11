@@ -522,13 +522,14 @@ class Rp2040:
             d = opcode & 0x07
             shift_n = (opcode >> 6) & 0x1F
             logger.debug(f"    Source R[{m}]\tDestination R[{d}]\tShift amount [{shift_n}]")
-            result = self.registers[m] << shift_n
-            self.registers[d] = result & 0xFFFFFFFF
+            result = (self.registers[m] << shift_n) & 0xffffffff
+            carry = (self.registers[m] >> 32 - shift_n) & 1
+            self.registers[d] = result
             if d != 15:  # This is actually MOV reg T2 encoding
                 self.apsr_n = bool(result & (1 << 31))
                 self.apsr_z = bool(result == 0)
                 if shift_n > 0:
-                    self.apsr_c = bool(result & (1 << 32))
+                    self.apsr_c = bool(carry)
         # LSLS (register)
         elif (opcode >> 6) == 0b0100000010:
             logger.debug("  LSLS (register) instruction...")
