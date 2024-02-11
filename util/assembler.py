@@ -151,6 +151,11 @@ def opcodeCMPregT1(rn: int, rm: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeCMPregT2(rn: int, rm: int) -> bytes:
+    opcode = (0b01000101 << 8) | ((rn & 8) << 4) | ((rm & 0xf) << 3) | (rn & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeCPS(im: int) -> bytes:
     opcode = (0b10110110011 << 5) | ((im & 0x1) << 4) | 0b0010
     return opcode.to_bytes(2, 'little')
@@ -214,6 +219,11 @@ def opcodeLSRimm(rd: int, rm: int, imm5: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeLSRreg(rdn: int, rm: int) -> bytes:
+    opcode = (0b0100000011 << 6) | ((rm & 0x7) << 3) | (rdn & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeMRS(rd: int, spec_reg: int) -> bytes:
     opcode = (0b1000 << 28) | ((rd & 0xf) << 24) | ((spec_reg & 0xff) << 16) | 0b1111001111101111
     return opcode.to_bytes(4, 'little')
@@ -222,6 +232,11 @@ def opcodeMRS(rd: int, spec_reg: int) -> bytes:
 def opcodeMSR(spec_reg: int, rn: int) -> bytes:
     opcode = (0b10001000 << 24) | ((spec_reg & 0xff) << 16) | (0b111100111000 << 4) | (rn & 0xf)
     return opcode.to_bytes(4, 'little')
+
+
+def opcodeMUL(rdm: int, rn: int) -> bytes:
+    opcode = (0b0100001101 << 6) | ((rn & 0x7) << 3) | (rdm & 0x7)
+    return opcode.to_bytes(2, 'little')
 
 
 def opcodeMVN(rd: int, rm: int) -> bytes:
@@ -312,4 +327,9 @@ def opcodeSUBSP(imm7: int) -> bytes:
 
 def opcodeUXTB(rd: int, rm: int) -> bytes:
     opcode = (0b1011001011 << 6) | ((rm & 0x7) << 3) | (rd & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
+def opcodeUXTH(rd: int, rm: int) -> bytes:
+    opcode = (0b1011001010 << 6) | ((rm & 0x7) << 3) | (rd & 0x7)
     return opcode.to_bytes(2, 'little')

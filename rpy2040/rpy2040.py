@@ -396,6 +396,18 @@ class Rp2040:
             self.apsr_z = bool(result == 0)
             self.apsr_c = c
             self.apsr_v = v
+        # CMP (register) T2
+        elif (opcode >> 8) == 0b01000101:
+            logger.debug("  CMP (register) T2 instruction...")
+            n = ((opcode >> 4) & 0x08) | (opcode & 0x7)
+            m = (opcode >> 3) & 0xF
+            # TODO: special case for SP register (13)
+            logger.debug(f"    CMP r{n}, r{m}")
+            result, c, v = add_with_carry(self.registers[n], ~self.registers[m], True)
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
+            self.apsr_c = c
+            self.apsr_v = v
         # CPS
         elif (opcode >> 5) == 0b10110110011:
             logger.debug("  CPS instruction...")
@@ -543,6 +555,19 @@ class Rp2040:
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
             self.apsr_c = bool((self.registers[m] >> (shift_n - 1)) & 1)
+        # LSR (register)
+        elif (opcode >> 6) == 0b0100000011:
+            logger.debug("  LSR (register) instruction...")
+            m = (opcode >> 3) & 0x07
+            dn = opcode & 0x07
+            shift_n = self.registers[m] & 0xff
+            logger.debug(f"    LSRS r{dn}, r{m}")
+            result = self.registers[dn] >> shift_n
+            carry = (self.registers[dn] >> (shift_n - 1)) & 1
+            self.registers[dn] = result & 0xFFFFFFFF
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
+            self.apsr_c = bool(carry)
         # MOV (immediate)
         elif (opcode >> 11) == 0b00100:
             logger.debug("  MOV (immediate) instruction...")
@@ -582,6 +607,16 @@ class Rp2040:
             if sysm >> 3 == 1:  # SP
                 if sysm & 0x7 == 0:  # MSP = SP_main
                     self.sp = self.registers[n] & 0xfffffffc
+        # MUL
+        elif (opcode >> 6) == 0b0100001101:
+            logger.debug("  MUL instruction...")
+            dm = (opcode & 0x7)
+            n = (opcode >> 3) & 0x7
+            logger.debug(f"    MUL r{dm}, r{n}")
+            result = (self.registers[dm] * self.registers[n]) & 0xffffffff
+            self.registers[dm] = result
+            self.apsr_n = bool(result & (1 << 31))
+            self.apsr_z = bool(result == 0)
         # MVN
         elif (opcode >> 6) == 0b0100001111:
             logger.debug("  MVN instruction...")
@@ -773,6 +808,12 @@ class Rp2040:
             d = opcode & 0x7
             m = (opcode >> 3) & 0x7
             self.registers[d] = self.registers[m] & 0xFF
+        # UXTH
+        elif (opcode >> 6) == 0b1011001010:
+            logger.debug("  UXTH instruction...")
+            d = opcode & 0x7
+            m = (opcode >> 3) & 0x7
+            self.registers[d] = self.registers[m] & 0xFFFF
         else:
             logger.warning(" Instruction not implemented!!!!")
             # raise NotImplementedError

@@ -285,7 +285,7 @@ class TestInstructions:
         assert rp.apsr_n is False
         assert rp.apsr_v is False
 
-    def test_cmp_register(self):
+    def test_cmp_register_t1(self):
         rp = Rp2040()
         opcode = asm.opcodeCMPregT1(rn=asm.R5, rm=asm.R4)  # cmp	r5, r4
         rp.flash[0:2] = opcode
@@ -307,6 +307,18 @@ class TestInstructions:
         assert rp.apsr_z is True
         assert rp.apsr_c is True
         assert rp.apsr_n is False
+        assert rp.apsr_v is False
+
+    def test_cmp_register_t2(self):
+        rp = Rp2040()
+        opcode = asm.opcodeCMPregT2(rn=asm.R9, rm=asm.R5)  # cmp	r5, r9
+        rp.flash[0:2] = opcode
+        rp.registers[5] = 0
+        rp.registers[9] = 0x80000000
+        rp.execute_instruction()
+        assert rp.apsr_z is False
+        assert rp.apsr_c is True
+        assert rp.apsr_n is True
         assert rp.apsr_v is False
 
     def test_eor(self):
@@ -444,6 +456,18 @@ class TestInstructions:
         assert rp.apsr_z is False
         assert rp.apsr_c is True
 
+    def test_lsr_register(self):
+        rp = Rp2040()
+        opcode = asm.opcodeLSRreg(rdn=1, rm=4)   # lsrs r1, r4
+        rp.flash[0:len(opcode)] = opcode
+        rp.registers[1] = 0x00000074
+        rp.registers[4] = 0x00000003
+        rp.execute_instruction()
+        assert rp.registers[1] == 0x0000000e
+        assert rp.apsr_n is False
+        assert rp.apsr_z is False
+        assert rp.apsr_c is True
+
     def test_mov_immediate(self):
         rp = Rp2040()
         rp.flash[0:2] = b'\xd0\x24'  # movs	r4, #208
@@ -465,6 +489,19 @@ class TestInstructions:
         rp.registers[1] = 0x2000061a
         rp.execute_instruction()
         assert rp.sp == 0x20000618
+
+    def test_mul(self):
+        rp = Rp2040()
+        opcode = asm.opcodeMUL(rdm=asm.R3, rn=asm.R4)  # muls r3, r4
+        rp.flash[0:2] = opcode
+        rp.registers[3] = 0x42
+        rp.registers[4] = 0x424242
+        rp.apsr_n = True
+        rp.apsr_z = True
+        rp.execute_instruction()
+        assert rp.registers[3] == 0x11151504
+        assert rp.apsr_n is False
+        assert rp.apsr_z is False
 
     def test_mvn(self):
         rp = Rp2040()
@@ -713,11 +750,19 @@ class TestInstructions:
 
     def test_uxtb(self):
         rp = Rp2040()
-        opcode = asm.opcodeUXTB(rd=1, rm=3)
-        rp.flash[0:len(opcode)] = opcode  # adcs r1, r4
+        opcode = asm.opcodeUXTB(rd=1, rm=3)  # uxtb r1, r3
+        rp.flash[0:len(opcode)] = opcode
         rp.registers[3] = 0x01020304
         rp.execute_instruction()
         assert rp.registers[1] == 0x00000004
+
+    def test_uxth(self):
+        rp = Rp2040()
+        opcode = asm.opcodeUXTH(rd=1, rm=3)  # uxth r1, r3
+        rp.flash[0:len(opcode)] = opcode
+        rp.registers[3] = 0x01020304
+        rp.execute_instruction()
+        assert rp.registers[1] == 0x00000304
 
 
 class TestAddWithCarry:
