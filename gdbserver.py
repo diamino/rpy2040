@@ -56,6 +56,8 @@ def handle_gdb_message(packet_data: str) -> str:
             response = 'PacketSize=4000'
         elif packet_data == 'qAttached':
             response = '1'
+        elif packet_data == 'qRcmd,68616c74':  # monitor halt
+            response = 'OK'
     elif packet_data[0] == '?':
         # Query halt reason
         response = 'S05'
