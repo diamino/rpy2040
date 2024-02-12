@@ -168,6 +168,7 @@ def main():
         s.bind((HOST, PORT))
         s.listen()
         print(">>> RPy2040 GDB server <<<")
+        print(f"Listening on {HOST}:{PORT}...")
         try:
             while True:
                 print("Waiting for connection...")
