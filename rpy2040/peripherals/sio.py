@@ -9,6 +9,7 @@ SIO_START = 0xd0000000
 SIO_SIZE = 0x1000000
 # SIO registers
 SIO_CPUID = 0x00
+SIO_GPIO_HI_IN = 0x08
 SIO_GPIO_OUT_SET = 0x14
 SIO_GPIO_OUT_CLR = 0x18
 SIO_DIV_UDIVIDEND = 0x60
@@ -29,6 +30,7 @@ class Sio(MemoryRegionMap):
     def __init__(self, base_address: int = SIO_START, size: int = SIO_SIZE):
         super().__init__("SIO", base_address, size)
         self.cpuid = 0  # Hardcoded '0' as we currently only support one core
+        self.gpio_hi_in = 2  # Hardcoded to '2'. This should trigger flash boot.
         self.div_csr = 1  # Reset value is 1 (ready)
         self.div_dividend = 0
         self.div_divisor = 0
@@ -41,6 +43,7 @@ class Sio(MemoryRegionMap):
         self.writehooks[SIO_DIV_UDIVIDEND] = self.write_div_udividend
         self.writehooks[SIO_DIV_UDIVISOR] = self.write_div_udivisor
         self.readhooks[SIO_CPUID] = self.read_cpuid
+        self.readhooks[SIO_GPIO_HI_IN] = self.read_gpio_hi_in
         self.readhooks[SIO_DIV_QUOTIENT] = self.read_div_quotient
         self.readhooks[SIO_DIV_REMAINDER] = self.read_div_remainder
         self.readhooks[SIO_DIV_CSR] = self.read_div_csr
@@ -59,6 +62,9 @@ class Sio(MemoryRegionMap):
 
     def read_cpuid(self) -> int:
         return self.cpuid
+
+    def read_gpio_hi_in(self) -> int:
+        return self.gpio_hi_in
 
     def write_div_udividend(self, value: int) -> None:
         self.div_dividend = value
