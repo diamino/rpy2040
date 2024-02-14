@@ -18,6 +18,9 @@ class TestAssembler:
     def test_opcodeADDregT2(self):
         assert asm.opcodeADDregT2(asm.R3, asm.R12) == b'\x63\x44'
 
+    def test_opcodeADDSPimmT1(self):
+        assert asm.opcodeADDSPimmT1(asm.R4, 3) == b'\x03\xac'
+
     def test_opcodeADDSPimmT2(self):
         assert asm.opcodeADDSPimmT2(3) == b'\x03\xb0'
 
@@ -120,6 +123,9 @@ class TestAssembler:
     def test_opcodePOP(self):
         assert asm.opcodePOP((asm.R0, asm.R1, asm.PC)) == b'\x03\xbd'
 
+    def test_opcodeREV(self):
+        assert asm.opcodeREV(asm.R3, asm.R1) == b'\x0b\xba'
+
     def test_opcodeRSB(self):
         assert asm.opcodeRSB(asm.R4, asm.R1) == b'\x4c\x42'
 
@@ -141,6 +147,9 @@ class TestAssembler:
     def test_opcodeSTRBreg(self):
         assert asm.opcodeSTRBreg(asm.R3, asm.R0, asm.R2) == b'\x83\x54'
 
+    def test_opcodeSTRHimm(self):
+        assert asm.opcodeSTRHimm(asm.R3, asm.R0, 11) == b'\xc3\x82'
+
     def test_opcodeSTRHreg(self):
         assert asm.opcodeSTRHreg(asm.R1, asm.R3, asm.R2) == b'\x99\x52'
 
@@ -161,3 +170,6 @@ class TestAssembler:
 
     def test_opcodeUXTH(self):
         assert asm.opcodeUXTH(asm.R3, asm.R2) == b'\x93\xb2'
+
+    def test_opcodeWFE(self):
+        assert asm.opcodeWFE() == b'\x20\xbf'

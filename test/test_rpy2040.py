@@ -92,6 +92,14 @@ class TestInstructions:
         rp.execute_instruction()
         assert rp.registers[3] == 0x42 + 0x69
 
+    def test_add_sp_immediate_t1(self):
+        rp = Rp2040()
+        opcode = asm.opcodeADDSPimmT1(rd=asm.R6, imm8=3)  # add r6, sp, #12
+        rp.flash[0:len(opcode)] = opcode
+        rp.sp = SP_START
+        rp.execute_instruction()
+        assert rp.registers[6] == SP_START + 12
+
     def test_add_sp_immediate_t2(self):
         rp = Rp2040()
         opcode = asm.opcodeADDSPimmT2(imm7=3)  # add sp, #12
@@ -554,6 +562,14 @@ class TestInstructions:
         wordstring = b'*\x00\x00\x00+\x00\x00\x00,\x00\x00\x00-\x00\x00\x00'
         assert rp.sram[SP_START-SRAM_START-16:SP_START-SRAM_START] == wordstring
 
+    def test_rev(self):
+        rp = Rp2040()
+        opcode = asm.opcodeREV(rd=asm.R3, rm=asm.R6)  # rev r3, r6
+        rp.flash[0:len(opcode)] = opcode
+        rp.registers[6] = 0x01020304
+        rp.execute_instruction()
+        assert rp.registers[3] == 0x04030201
+
     def test_rsb(self):
         rp = Rp2040()
         opcode = asm.opcodeRSB(rd=3, rn=2)
@@ -652,6 +668,16 @@ class TestInstructions:
         rp.registers[3] = SRAM_START
         rp.execute_instruction()
         assert rp.sram[40:44] == b'\x11\xfe\x33\x44'
+
+    def test_strh_immediate(self):
+        rp = Rp2040()
+        opcode = asm.opcodeSTRHimm(rt=asm.R1, rn=asm.R3, imm5=11)  # strh r1, [r3, #22]
+        rp.flash[0:2] = opcode
+        rp.sram[22:26] = b'\x11\x22\x33\x44'
+        rp.registers[1] = 0xf00dcafe
+        rp.registers[3] = SRAM_START
+        rp.execute_instruction()
+        assert rp.sram[22:26] == b'\xfe\xca\x33\x44'
 
     def test_strh_register(self):
         rp = Rp2040()

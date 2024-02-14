@@ -79,6 +79,11 @@ def opcodeADDregT2(rdn: int, rm: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeADDSPimmT1(rd: int, imm8: int) -> bytes:
+    opcode = (0b10101 << 11) | ((rd & 0x7) << 8) | (imm8 & 0x7f)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeADDSPimmT2(imm7: int) -> bytes:
     opcode = (0b101100000 << 7) | (imm7 & 0x7f)
     return opcode.to_bytes(2, 'little')
@@ -262,6 +267,11 @@ def opcodePOP(registers: tuple[int, ...]) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeREV(rd: int, rm: int) -> bytes:
+    opcode = (0b1011101000 << 6) | ((rm & 0x7) << 3) | (rd & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeRSB(rd: int, rn: int) -> bytes:
     opcode = (0b0100001001 << 6) | ((rn & 0x7) << 3) | (rd & 0x7)
     return opcode.to_bytes(2, 'little')
@@ -300,6 +310,11 @@ def opcodeSTRBreg(rt: int, rn: int, rm: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeSTRHimm(rt: int, rn: int, imm5: int) -> bytes:
+    opcode = (0b10000 << 11) | ((imm5 & 0x1f) << 6) | ((rn & 0x7) << 3) | (rt & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeSTRHreg(rt: int, rn: int, rm: int) -> bytes:
     opcode = (0b0101001 << 9) | ((rm & 0x7) << 6) | ((rn & 0x7) << 3) | (rt & 0x7)
     return opcode.to_bytes(2, 'little')
@@ -332,4 +347,9 @@ def opcodeUXTB(rd: int, rm: int) -> bytes:
 
 def opcodeUXTH(rd: int, rm: int) -> bytes:
     opcode = (0b1011001010 << 6) | ((rm & 0x7) << 3) | (rd & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
+def opcodeWFE() -> bytes:
+    opcode = 0b1011111100100000
     return opcode.to_bytes(2, 'little')

@@ -297,6 +297,14 @@ class Rp2040:
             # TODO: special case for SP register (13)
             logger.debug(f"    Source R[{m}]\tDestination R[{dn}]")
             self.registers[dn] = self.registers[m] + self.registers[dn]
+        # ADD (SP plus immediate) T1
+        elif (opcode >> 11) == 0b10101:
+            logger.debug("  ADD (SP plus immediate) T1 instruction...")
+            imm32 = (opcode & 0xFF) << 2
+            d = (opcode >> 8) & 0x7
+            logger.debug(f"    ADD r{d}, sp, #{imm32}...")
+            result, c, v = add_with_carry(self.sp, imm32, False)
+            self.registers[d] = result
         # ADD (SP plus immediate) T2
         elif (opcode >> 7) == 0b101100000:
             logger.debug("  ADD (SP plus immediate) T2 instruction...")
@@ -448,7 +456,7 @@ class Rp2040:
             self.primask_pm = bool(im)
         # DMB
         elif (opcode == 0b1111001110111111) and ((opcode2 >> 4) == 0b100011110101):
-            assert (opcode2 & 0xf) == 0b1111
+            # assert (opcode2 & 0xf) == 0b1111  # Apparently other options are used by the compiler
             logger.debug("    DMB sy")
             pass
         # EOR
@@ -615,10 +623,10 @@ class Rp2040:
             m = (opcode >> 3) & 0xF
             logger.debug(f"    Source R[{m}]\tDestination R[{d}]")
             result = self.registers[m]
-            self.registers[d] = result
-            # if d != 15:
-            #     self.apsr_n = bool(result & (1 << 31))
-            #     self.apsr_z = bool(result == 0)
+            if d != 15:
+                self.registers[d] = result
+            else:
+                self.pc = result & 0xfffffffe
         # MRS
         elif (opcode == 0b1111001111101111) and ((opcode2 >> 12) == 0b1000):
             logger.debug("  MRS instruction...")
@@ -694,6 +702,18 @@ class Rp2040:
             if (opcode & (1 << 8)):  # 'M'-bit -> push LR register
                 self.mpu.write_uint32(address, self.registers[14])
             self.sp -= 4 * bitcount
+        # REV
+        elif (opcode >> 6) == 0b1011101000:
+            logger.debug("  REV instruction...")
+            m = ((opcode >> 3) & 0x7)
+            d = opcode & 0x7
+            logger.debug(f"    REV r{d}, r{m}...")
+            value = self.registers[m]
+            result = (value & 0xff) << 24
+            result |= (value & 0xff00) << 8
+            result |= (value & 0xff0000) >> 8
+            result |= (value & 0xff000000) >> 24
+            self.registers[d] = result
         # RSB / NEG
         elif (opcode >> 6) == 0b0100001001:
             logger.debug("  RSB / NEG instruction...")
@@ -772,6 +792,14 @@ class Rp2040:
             address = self.registers[n] + self.registers[m]
             logger.debug(f"    STRB r{t}, [r{n}, r{m}]")
             self.mpu.write(address, self.registers[t] & 0xff, num_bytes=1)
+        # STRH immediate
+        elif (opcode >> 11) == 0b10000:
+            imm = ((opcode >> 6) & 0x1f) << 1
+            n = (opcode >> 3) & 0x7
+            t = opcode & 0x7
+            address = self.registers[n] + imm
+            logger.debug(f"    STRB r{t}, [r{n}, #{imm}]")
+            self.mpu.write(address, self.registers[t] & 0xffff, num_bytes=2)
         # STRH register
         elif (opcode >> 9) == 0b0101001:
             m = (opcode >> 6) & 0x7
@@ -845,6 +873,10 @@ class Rp2040:
             d = opcode & 0x7
             m = (opcode >> 3) & 0x7
             self.registers[d] = self.registers[m] & 0xFFFF
+        # WFE
+        elif opcode == 0b1011111100100000:
+            logger.debug("    WFE")
+            pass
         else:
             logger.warning(" Instruction not implemented!!!!")
             # raise NotImplementedError
