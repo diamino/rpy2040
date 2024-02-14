@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 '''
 RPy2040 GDB server
 '''
@@ -64,20 +65,20 @@ def handle_gdb_message(packet_data: str) -> str:
     elif packet_data[0] == 'g':
         # Read registers
         reg_strings = [encode_hex(r) for r in rp.registers]
-        reg_strings.append(encode_hex(rp.apsr))
+        reg_strings.append(encode_hex(rp.xpsr))
         response = ''.join(reg_strings)
     elif packet_data[0] == 'G':
         # Write registers
         reg_strings = [packet_data[1+(8*i):9+(8*i)] for i in range(17)]
         for i, v in enumerate(reg_strings[:16]):
             rp.registers[i] = decode_hex(v)
-        rp.apsr = decode_hex(reg_strings[16])
+        rp.xpsr = decode_hex(reg_strings[16])
         response = 'OK'
     elif packet_data[0] == 'm':
         # Read memory
         addr_str, length_str = packet_data[1:].split(',')
         addr = int(addr_str, 16)
-        length = int(length_str)
+        length = int(length_str, 16)
         response = ''
         for i in range(length):
             response += f"{rp.mpu.read_uint8(addr + i):02x}"
@@ -86,7 +87,7 @@ def handle_gdb_message(packet_data: str) -> str:
         addr_length_str, value_str = packet_data[1:].split(':')
         addr_str, length_str = addr_length_str.split(',')
         addr = int(addr_str, 16)
-        length = int(length_str)
+        length = int(length_str, 16)
         value = decode_hex(value_str)
         rp.mpu.write(addr, value, length)
         response = 'OK'
@@ -96,7 +97,7 @@ def handle_gdb_message(packet_data: str) -> str:
         elif packet_data.startswith('vCont;s'):
             rp.execute_instruction()
             reg_strings = [f"{i:02x}:{encode_hex(r)}" for i, r in enumerate(rp.registers)]
-            reg_strings.append(f"{16:02x}:{encode_hex(rp.apsr)}")
+            reg_strings.append(f"{16:02x}:{encode_hex(rp.xpsr)}")
             response = f"T05{';'.join(reg_strings)};reason:trace;"
         elif packet_data.startswith('vCont;c'):
             execute_thread = threading.Thread(target=rp.execute, daemon=True)
@@ -137,7 +138,7 @@ def main():
 
     logging.basicConfig(level=LOGGING_LEVEL)
 
-    parser = argparse.ArgumentParser(description='RPy2040-gdb - a RP2040 emulator written in Python (with GDB stub)')
+    parser = argparse.ArgumentParser(description='RPy2040-gdb - an RP2040 emulator written in Python (with GDB stub)')
 
     base16 = partial(int, base=16)
 
