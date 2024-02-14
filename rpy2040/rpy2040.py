@@ -65,7 +65,8 @@ class Rp2040:
         self.stopped = False
         self.stop_reason = 0
         self.registers = array.array('l', 16*[0])
-        self.apsr: int = 0
+        self.xpsr: int = 0
+        self.epsr_t = True
         self.primask_pm: bool = False
         self.pc = PC_START
         self.pc_previous = PC_START
@@ -119,48 +120,77 @@ class Rp2040:
         self.registers[14] = value
 
     @property
+    def apsr(self) -> int:
+        return self.xpsr & 0xf0000000
+
+    @apsr.setter
+    def apsr(self, value: int):
+        self.xpsr &= ~0xf0000000
+        self.xpsr |= (value & 0xf0000000)
+
+    @property
     def apsr_n(self) -> bool:
-        return bool(self.apsr & (1 << 31))
+        return bool(self.xpsr & (1 << 31))
 
     @apsr_n.setter
     def apsr_n(self, value: bool):
         if value:
-            self.apsr |= (1 << 31)
+            self.xpsr |= (1 << 31)
         else:
-            self.apsr &= ~(1 << 31)
+            self.xpsr &= ~(1 << 31)
 
     @property
     def apsr_z(self) -> bool:
-        return bool(self.apsr & (1 << 30))
+        return bool(self.xpsr & (1 << 30))
 
     @apsr_z.setter
     def apsr_z(self, value: bool):
         if value:
-            self.apsr |= (1 << 30)
+            self.xpsr |= (1 << 30)
         else:
-            self.apsr &= ~(1 << 30)
+            self.xpsr &= ~(1 << 30)
 
     @property
     def apsr_c(self) -> bool:
-        return bool(self.apsr & (1 << 29))
+        return bool(self.xpsr & (1 << 29))
 
     @apsr_c.setter
     def apsr_c(self, value: bool):
         if value:
-            self.apsr |= (1 << 29)
+            self.xpsr |= (1 << 29)
         else:
-            self.apsr &= ~(1 << 29)
+            self.xpsr &= ~(1 << 29)
 
     @property
     def apsr_v(self) -> bool:
-        return bool(self.apsr & (1 << 28))
+        return bool(self.xpsr & (1 << 28))
 
     @apsr_v.setter
     def apsr_v(self, value: bool):
         if value:
-            self.apsr |= (1 << 28)
+            self.xpsr |= (1 << 28)
         else:
-            self.apsr &= ~(1 << 28)
+            self.xpsr &= ~(1 << 28)
+
+    @property
+    def ipsr(self) -> int:
+        return self.xpsr & 0x3f
+
+    @ipsr.setter
+    def ipsr(self, value: int):
+        self.xpsr &= ~0x3f
+        self.xpsr |= (value & 0x3f)
+
+    @property
+    def epsr_t(self) -> bool:
+        return bool(self.xpsr & (1 << 24))
+
+    @epsr_t.setter
+    def epsr_t(self, value: bool):
+        if value:
+            self.xpsr |= (1 << 24)
+        else:
+            self.xpsr &= ~(1 << 24)
 
     def str_registers(self, registers: Iterable[int] = range(16)) -> str:
         return '\t'.join([f"R[{i:02}]: {self.registers[i]:#010x}" for i in registers])
@@ -190,7 +220,7 @@ class Rp2040:
 
     def execute_instruction(self) -> None:
         logger.info("")
-        logger.info(f"PC: {self.pc:#010x}\tSP: {self.sp:#010x}\tAPSR: {self.apsr:#010x}")
+        logger.info(f"PC: {self.pc:#010x}\tSP: {self.sp:#010x}\txPSR: {self.xpsr:#010x}")
         # TODO: Opcode loading can be sped up by referencing the XIP flash directly
         opcode = self.mpu.read_uint16(self.pc)
         self.pc_previous = self.pc
@@ -803,7 +833,6 @@ class Rp2040:
             result = self.registers[n] & self.registers[m]
             self.apsr_n = bool(result & (1 << 31))
             self.apsr_z = bool(result == 0)
-            logger.debug(f"  APSR: {self.apsr:08x}")
         # UXTB
         elif (opcode >> 6) == 0b1011001011:
             logger.debug("  UXTB instruction...")
