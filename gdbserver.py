@@ -11,12 +11,12 @@ from typing import Optional
 import binascii
 import logging
 from rpy2040.rpy2040 import Rp2040, loadbin
+from util.uf2 import loaduf2
 
 LOGGING_LEVEL = logging.ERROR
 
 HOST = "127.0.0.1"
 PORT = 3333
-FILENAME = "./examples/binaries/uart/hello_uart/hello_uart.bin"
 
 STOP_REPLY_TRAP = "S05"
 
@@ -143,7 +143,7 @@ def main():
     base16 = partial(int, base=16)
 
     parser.add_argument('filename', type=str,
-                        help='The binary (.bin) file to execute in the emulator')
+                        help='The binary (.bin or .uf2) file to execute in the emulator')
     parser.add_argument('-e', '--entry_point', type=base16, nargs='?', const="0x10000000", default=None,
                         help='The entry point for execution in hex format (eg. 0x10000354). Defaults to 0x10000000 if no bootrom is loaded.')  # noqa: E501
     parser.add_argument('-b', '--bootrom', type=str,
@@ -153,7 +153,11 @@ def main():
 
     args = parser.parse_args()
 
-    loadbin(args.filename, rp.flash)
+    filename = str(args.filename)
+    if filename.endswith('.bin'):
+        loadbin(filename, rp.flash)
+    elif filename.endswith('.uf2'):
+        loaduf2(filename, rp.flash, offset=0x10000000)
 
     if args.bootrom:
         loadbin(args.bootrom, rp.rom)

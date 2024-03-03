@@ -1,5 +1,7 @@
+#!/usr/bin/env python
 import logging
 from rpy2040.rpy2040 import Rp2040, loadbin
+from util.uf2 import loaduf2
 
 LOGGING_LEVEL = logging.ERROR
 
@@ -12,12 +14,12 @@ def main():  # pragma: no cover
 
     logging.basicConfig(level=LOGGING_LEVEL)
 
-    parser = argparse.ArgumentParser(description='RPy2040 - a RP2040 emulator written in Python')
+    parser = argparse.ArgumentParser(description='RPy2040 - an RP2040 emulator written in Python')
 
     base16 = partial(int, base=16)
 
     parser.add_argument('filename', type=str,
-                        help='The binary (.bin) file to execute in the emulator')
+                        help='The binary (.bin or .uf2) file to execute in the emulator')
     parser.add_argument('-e', '--entry_point', type=base16, nargs='?', const="0x10000000", default=None,
                         help='The entry point for execution in hex format (eg. 0x10000354). Defaults to 0x10000000 if no bootrom is loaded.')  # noqa: E501
     parser.add_argument('-b', '--bootrom', type=str,
@@ -30,7 +32,11 @@ def main():  # pragma: no cover
     args = parser.parse_args()
 
     rp = Rp2040()
-    loadbin(args.filename, rp.flash)
+    filename = str(args.filename)
+    if filename.endswith('.bin'):
+        loadbin(filename, rp.flash)
+    elif filename.endswith('.uf2'):
+        loaduf2(filename, rp.flash, offset=0x10000000)
 
     if args.bootrom:
         loadbin(args.bootrom, rp.rom)
