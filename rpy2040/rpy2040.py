@@ -544,6 +544,15 @@ class Rp2040:
             address = self.registers[n] + (imm5 << 1)
             logger.debug(f"    Destination R[{t}]\tSource address [{address:#010x}]")
             self.registers[t] = self.mpu.read_uint16(address)
+        # LDRSB (register)
+        elif (opcode >> 9) == 0b0101011:
+            logger.debug("  LDRSB (register) instruction...")
+            m = (opcode >> 6) & 0x7
+            n = (opcode >> 3) & 0x7
+            t = opcode & 0x7
+            address = self.registers[n] + self.registers[m]
+            logger.debug(f"    LRDSB r{t}, [r{n}, r{m}]")
+            self.registers[t] = sign_extend(self.mpu.read_uint8(address), 8) & 0xffffffff
         # LDRSH (register)
         elif (opcode >> 9) == 0b0101111:
             logger.debug("  LDRSH (register) instruction...")
@@ -738,6 +747,9 @@ class Rp2040:
             self.apsr_z = bool(result == 0)
             self.apsr_c = c
             self.apsr_v = v
+        # SEV
+        elif opcode == 0b1011111101000000:
+            pass
         # STM
         elif (opcode >> 11) == 0b11000:
             logger.debug("  STM instruction...")
@@ -853,6 +865,12 @@ class Rp2040:
             logger.debug(f"    Subtract {imm32:#x} from SP...")
             result, c, v = add_with_carry(self.sp, ~imm32, True)
             self.sp = result
+        # SXTB
+        elif (opcode >> 6) == 0b1011001001:
+            logger.debug("  SXTB instruction...")
+            d = opcode & 0x7
+            m = (opcode >> 3) & 0x7
+            self.registers[d] = sign_extend(self.registers[m] & 0xFF, 8) & 0xffffffff
         # TST immediate (T1)
         elif (opcode >> 6) == 0b0100001000:
             logger.debug("  TST instruction...")

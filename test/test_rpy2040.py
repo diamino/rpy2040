@@ -418,6 +418,16 @@ class TestInstructions:
         rp.execute_instruction()
         assert rp.registers[1] == 0x0000f00d
 
+    def test_ldrsb_register(self):
+        rp = Rp2040()
+        opcode = asm.opcodeLDRSBreg(rt=asm.R1, rn=asm.R0, rm=asm.R4)  # ldrsb r1, [r0, r4]
+        rp.flash[0:len(opcode)] = opcode
+        rp.sram[0x618:0x61A] = b'\xfe\xca'
+        rp.registers[0] = 0x20000600
+        rp.registers[4] = 0x19
+        rp.execute_instruction()
+        assert rp.registers[1] == 0xffffffca
+
     def test_ldrsh(self):
         rp = Rp2040()
         rp.flash[0:2] = b'\x5d\x5f'  # ldrsh	r5, [r3, r5]
@@ -734,6 +744,14 @@ class TestInstructions:
         rp.sp = SP_START
         rp.execute_instruction()
         assert rp.sp == SP_START - 8
+
+    def test_sxtb(self):
+        rp = Rp2040()
+        opcode = asm.opcodeSXTB(rd=1, rm=3)  # uxtb r1, r3
+        rp.flash[0:len(opcode)] = opcode
+        rp.registers[3] = 0x01020384
+        rp.execute_instruction()
+        assert rp.registers[1] == 0xffffff84
 
     def test_tst(self):
         rp = Rp2040()

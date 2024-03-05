@@ -96,6 +96,9 @@ class TestAssembler:
     def test_opcodeLDRHimm(self):
         assert asm.opcodeLDRHimm(asm.R0, asm.R3, 0) == b'\x18\x88'
 
+    def test_opcodeLDRSBreg(self):
+        assert asm.opcodeLDRSBreg(asm.R3, asm.R1, asm.R2) == b'\x8b\x56'
+
     def test_opcodeLSRimm(self):
         assert asm.opcodeLSRimm(asm.R1, asm.R1, 1) == b'\x49\x08'
 
@@ -128,6 +131,9 @@ class TestAssembler:
 
     def test_opcodeRSB(self):
         assert asm.opcodeRSB(asm.R4, asm.R1) == b'\x4c\x42'
+
+    def test_opcodeSEV(self):
+        assert asm.opcodeSEV() == b'\x40\xbf'
 
     def test_opcodeSBC(self):
         assert asm.opcodeSBC(asm.R0, asm.R3) == b'\x98\x41'
@@ -164,6 +170,9 @@ class TestAssembler:
 
     def test_opcodeSUBSP(self):
         assert asm.opcodeSUBSP(2) == b'\x82\xb0'
+
+    def test_opcodeSXTB(self):
+        assert asm.opcodeSXTB(asm.R2, asm.R2) == b'\x52\xb2'
 
     def test_opcodeUXTB(self):
         assert asm.opcodeUXTB(asm.R1, asm.R1) == b'\xc9\xb2'

@@ -219,6 +219,11 @@ def opcodeLDRHimm(rt: int, rn: int, imm5: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeLDRSBreg(rt: int, rn: int, rm: int) -> bytes:
+    opcode = (0b0101011 << 9) | ((rm & 0x7) << 6) | ((rn & 0x7) << 3) | (rt & 0x7)
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeLSRimm(rd: int, rm: int, imm5: int) -> bytes:
     opcode = (0b00001 << 11) | ((imm5 & 0x1f) << 6) | ((rm & 0x7) << 3) | (rd & 0x7)
     return opcode.to_bytes(2, 'little')
@@ -282,6 +287,11 @@ def opcodeSBC(rdn: int, rm: int) -> bytes:
     return opcode.to_bytes(2, 'little')
 
 
+def opcodeSEV() -> bytes:
+    opcode = 0b1011111101000000
+    return opcode.to_bytes(2, 'little')
+
+
 def opcodeSTM(rn: int, registers: tuple[int, ...]) -> bytes:
     register_list = 0
     for i in registers:
@@ -337,6 +347,11 @@ def opcodeSUBreg(rd: int, rn: int, rm: int) -> bytes:
 
 def opcodeSUBSP(imm7: int) -> bytes:
     opcode = (0b101100001 << 7) | (imm7 & 0x7f)
+    return opcode.to_bytes(2, 'little')
+
+
+def opcodeSXTB(rd: int, rm: int) -> bytes:
+    opcode = (0b1011001001 << 6) | ((rm & 0x7) << 3) | (rd & 0x7)
     return opcode.to_bytes(2, 'little')
 
 
