@@ -48,6 +48,15 @@ class MemoryRegionMap:
         self.readhooks: dict[int, ReadHookType] = {}
 
     def write(self, address: int, value: int, num_bytes: int = 4) -> None:
+        # Narrow write: Align address
+        address &= 0xfffffffc
+
+        # Narrow write: Replicate value if num_bytes is 1 or 2 bytes
+        if num_bytes == 1:
+            value = (value & 0xff) << 24 | (value & 0xff) << 16 | (value & 0xff) << 8 | value & 0xff
+        elif num_bytes == 2:
+            value = (value & 0xffff) << 16 | value & 0xffff
+
         if self.atomic_writes:
             atomic_type = (address >> 12) & 3
             address &= ~(3 << 12)
@@ -57,6 +66,7 @@ class MemoryRegionMap:
                 value |= self.read(address, num_bytes)
             elif atomic_type == ATOMIC_CLEAR:
                 value = self.read(address, num_bytes) & ~value
+
         if address in self.writehooks:
             self.writehooks[address](value)
         else:
