@@ -50,11 +50,12 @@ def main():  # pragma: no cover
             rp.execute_instruction()
             if args.step:
                 input("* Press Enter to execute next instruction...")
-    else:
+    elif args.step:        
         while True:
             rp.execute_instruction()
-            if args.step:
-                input("* Press Enter to execute next instruction...")
+            input("* Press Enter to execute next instruction...")
+    else:
+        rp.execute()
 
 
 if __name__ == "__main__":  # pragma: no cover
