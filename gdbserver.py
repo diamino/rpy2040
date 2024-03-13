@@ -103,10 +103,15 @@ def handle_gdb_message(packet_data: str) -> str:
             execute_thread = threading.Thread(target=rp.execute, daemon=True)
             execute_thread.start()
             response = 'OK'
+        elif packet_data == 'vCtrlC':
+            rp.stop()
+            response = STOP_REPLY_TRAP
     return gdb_response(response)
 
 
 def handle_packet(data: bytes) -> Optional[bytes]:
+    if data == b'\x03':
+        return b'+' + handle_gdb_message('vCtrlC').encode('utf-8')
     dollar = data.find(b'$')
     hash = data.find(b'#')
     if (hash < dollar) | (hash != (len(data) - 3)):
