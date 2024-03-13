@@ -50,7 +50,7 @@ def main():  # pragma: no cover
             rp.execute_instruction()
             if args.step:
                 input("* Press Enter to execute next instruction...")
-    elif args.step:        
+    elif args.step:
         while True:
             rp.execute_instruction()
             input("* Press Enter to execute next instruction...")
