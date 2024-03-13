@@ -74,8 +74,12 @@ class MemoryRegionMap:
             # raise MemoryError
 
     def read(self, address: int, num_bytes: int = 4) -> int:
-        if address in self.readhooks:
-            return self.readhooks[address]()
+        # Align address
+        aligned_address = address & 0xfffffffc
+        if aligned_address in self.readhooks:
+            result = self.readhooks[aligned_address]()
+            offset = address - aligned_address
+            return int.from_bytes(result.to_bytes(4, 'little')[offset:offset+num_bytes], 'little')
         else:
             logger.info(f"<< Read {num_bytes} bytes from {self.name} address [{address + self.base_address:#010x}]")
             return 0
