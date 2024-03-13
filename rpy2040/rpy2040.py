@@ -17,6 +17,7 @@ from .peripherals.cortexreg import CortexRegisters
 from .peripherals.xosc import Xosc
 from .peripherals.clocks import Clocks
 from .peripherals.pll import Pll, PLL_USB_BASE
+from .peripherals.timer import Timer
 
 DEBUG_REGISTERS = True
 DEBUG_INSTRUCTIONS = True
@@ -90,6 +91,7 @@ class Rp2040:
         self.mpu.register_region("clocks", Clocks())
         self.mpu.register_region("pll_sys", Pll())
         self.mpu.register_region("pll_usb", Pll(base_address=PLL_USB_BASE))
+        self.mpu.register_region("timer", Timer())
 
     def init_from_bootrom(self):
         self.sp = self.mpu.regions["rom"].read(0)
@@ -644,7 +646,10 @@ class Rp2040:
             logger.debug(f"    Source SYSm[{sysm}]\tDestination R[{d}]")
             # TODO: other registers like APSR, PRIMASK, etc
             # TODO: privileged and unprivileged mode
-            self.registers[d] = 0  # Always set result register to zero
+            self.registers[d] = 0  # Always set result register to zero first
+            if sysm >> 3 == 0:
+                if sysm & 1:
+                    self.registers[d] |= self.ipsr
         # MSR
         elif ((opcode >> 5) == 0b11110011100) and ((opcode2 >> 14) == 0b10):
             logger.debug("  MSR instruction...")
